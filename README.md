@@ -1,36 +1,67 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RoadHero
+
+RoadHero is an on-demand roadside assistance and service management platform built with Next.js and TypeScript. It provides separate interfaces for providers (service technicians) and customers, with features for scheduling, tracking, messaging, and revenue management.
+
+## Key Features
+
+- Provider dashboard with job queue, earnings, and settings
+- Route tracking and interactive maps for technicians
+- In-app messaging and notifications
+- Subscription and revenue tracking
+- Admin and authentication flows with verification
+
+## Tech Stack
+
+- Next.js (App Router)
+- TypeScript
+- React
+- PostCSS
 
 ## Getting Started
 
-First, run the development server:
+Prerequisites:
+
+- Node.js 18+ and a package manager (`npm`, `pnpm`, or `yarn`).
+
+Quick start:
 
 ```bash
+# Install dependencies
+npm install
+
+# Run development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+
+# Build for production
+npm run build
+npm start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000 in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Project scripts (in `package.json`): `dev`, `build`, `start`, and `lint`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Configuration
 
-## Learn More
+- Add environment variables required by your integrations (e.g., maps, auth providers) to a `.env.local` file at the project root. Example variables often include `NEXT_PUBLIC_...` keys.
 
-To learn more about Next.js, take a look at the following resources:
+## Project Structure (high level)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `app/` — Next.js app routes and layouts (customer, provider, admin, auth)
+- `src/components/` — Reusable UI components (maps, headers, sidebars, modals)
+- `src/hooks/` — Custom React hooks (theme, language)
+- `public/` — Static assets
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Contributing
 
-## Deploy on Vercel
+- Open issues or pull requests with clear descriptions.
+- Keep changes small and add focused commits.
+- Add tests for new features when feasible.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Credits & Contact
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+This repository contains the RoadHero frontend. For questions or to contribute, open an issue or contact the maintainers.
+
+## License
+
+No license specified. Add a `LICENSE` file or update this section as appropriate.

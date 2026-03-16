@@ -1,0 +1,287 @@
+"use client";
+
+import React, { useState, useRef } from 'react';
+import {
+    CreditCard,
+    CheckCircle2,
+    Clock,
+    AlertCircle,
+    Plus,
+    Upload,
+    MoreHorizontal,
+    Bell,
+    Wallet,
+    Building2,
+    Copy,
+    Info
+} from 'lucide-react';
+import { useLanguage } from '@/hooks/useLanguage';
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+function cn(...inputs: ClassValue[]) {
+    return twMerge(clsx(inputs));
+}
+
+export default function SubscriptionCenterPage() {
+    const { t } = useLanguage();
+
+    // State for mock submission
+    const [referenceNo, setReferenceNo] = useState('');
+    const [receiptFile, setReceiptFile] = useState<string | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isSubmitted, setIsSubmitted] = useState(false);
+
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleSubmit = () => {
+        if (!referenceNo || !receiptFile) {
+            // Trigger a mock error toast or alert
+            const event = new CustomEvent('show-toast', {
+                detail: { message: 'Please provide Reference No. and Receipt', type: 'info' }
+            });
+            window.dispatchEvent(event);
+            return;
+        }
+
+        setIsSubmitting(true);
+
+        // Simulate network delay
+        setTimeout(() => {
+            setIsSubmitting(false);
+            setIsSubmitted(true);
+
+            // Trigger success toast
+            const event = new CustomEvent('show-toast', {
+                detail: { message: 'Proof submitted successfully!', type: 'success' }
+            });
+            window.dispatchEvent(event);
+        }, 2000);
+    };
+
+    return (
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-1000 pb-20">
+            {/* Header Area */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <div>
+                    <h1 className="text-xl font-black text-[#171717] dark:text-white transition-colors">{t('subscription')}</h1>
+                    <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-1">Manage your platform access</p>
+                </div>
+
+                <div className="flex items-center gap-6">
+                    <button
+                        onClick={() => window.dispatchEvent(new CustomEvent('open-notifications'))}
+                        className="p-2 text-gray-400 dark:text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors relative"
+                    >
+                        <Bell size={18} />
+                        <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 border-2 border-white dark:border-[#0A0A0A] rounded-full"></div>
+                    </button>
+                    <div className="bg-orange-50 dark:bg-orange-500/10 px-3 py-1.5 rounded-xl border border-orange-100 dark:border-orange-500/20 shadow-sm transition-colors">
+                        <span className="text-[9px] font-black text-orange-600 dark:text-orange-400 uppercase tracking-widest">Trial: 12 Days</span>
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2 space-y-8">
+                    {/* Status Card */}
+                    <div className="bg-white dark:bg-white/5 rounded-[32px] border border-gray-100 dark:border-white/5 shadow-sm p-8 relative overflow-hidden flex flex-col gap-5 transition-all">
+                        <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-orange-500"></div>
+                        <div className="space-y-1">
+                            <p className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest leading-none transition-colors">Status</p>
+                            <h2 className="text-2xl font-black text-gray-900 dark:text-white leading-tight transition-colors">Free Trial Active</h2>
+                        </div>
+
+                        <div className="flex flex-wrap gap-4 items-center">
+                            <div className="bg-orange-50 dark:bg-orange-500/10 px-5 py-2 rounded-xl border border-orange-100 dark:border-orange-500/20 transition-colors">
+                                <span className="text-xs font-black text-orange-600 dark:text-orange-400 tracking-tight">14 Days Remaining</span>
+                            </div>
+                            <p className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest transition-colors">Expires: <span className="text-primary dark:text-accent">Oct 28</span></p>
+                        </div>
+                    </div>
+
+                    {/* Payment Section */}
+                    <div className="bg-white dark:bg-white/5 rounded-[32px] border border-gray-100 dark:border-white/5 shadow-sm p-8 space-y-8 transition-all">
+                        <div className="space-y-1">
+                            <h3 className="text-base font-black text-gray-900 dark:text-white leading-tight transition-colors">Platform Fee Payment</h3>
+                            <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 transition-colors">Transfer 500 ETB monthly to keep your garage active.</p>
+                        </div>
+
+                        <div className="space-y-4">
+                            {/* Bank Option */}
+                            <div className="flex items-center gap-5 p-5 rounded-[24px] bg-gray-50/50 dark:bg-white/[0.02] border border-gray-50 dark:border-white/5 group hover:border-blue-100 dark:hover:border-primary/20 hover:bg-white dark:hover:bg-white/5 transition-all cursor-pointer">
+                                <div className="w-11 h-11 bg-[#1E3A8A] dark:bg-primary rounded-2xl flex items-center justify-center text-white shrink-0 shadow-lg shadow-blue-900/10 dark:shadow-none">
+                                    <span className="font-black text-[10px] uppercase tracking-tighter">CBE</span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-black text-gray-900 dark:text-white truncate transition-colors">Commercial Bank</p>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                        <span className="text-base font-black text-primary dark:text-accent tracking-tight transition-colors">1000234567891</span>
+                                        <button className="p-1 text-gray-300 dark:text-gray-600 hover:text-primary dark:hover:text-accent transition-colors">
+                                            <Copy size={14} />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Telebirr Option */}
+                            <div className="flex items-center gap-5 p-5 rounded-[24px] bg-gray-50/50 dark:bg-white/[0.02] border border-gray-50 dark:border-white/5 group hover:border-blue-100 dark:hover:border-primary/20 hover:bg-white dark:hover:bg-white/5 transition-all cursor-pointer">
+                                <div className="w-11 h-11 bg-[#00AEEF] dark:bg-blue-400 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-lg shadow-blue-500/10 dark:shadow-none">
+                                    <Wallet size={18} fill="white" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-black text-gray-900 dark:text-white truncate transition-colors">Telebirr Merchant</p>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                        <span className="text-base font-black text-primary dark:text-accent tracking-tight transition-colors">782910</span>
+                                        <button className="p-1 text-gray-300 dark:text-gray-600 hover:text-primary dark:hover:text-accent transition-colors">
+                                            <Copy size={14} />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2.5 text-primary/60 dark:text-accent/60 transition-colors">
+                            <Info size={14} />
+                            <p className="text-[9px] font-bold uppercase tracking-widest">Verification takes 1-2 hours.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="space-y-8">
+                    {/* Submit Proof Card */}
+                    <div className="bg-white dark:bg-white/5 rounded-[32px] border border-gray-100 dark:border-white/5 shadow-sm p-8 flex flex-col gap-8 relative overflow-hidden transition-all">
+                        {isSubmitted && (
+                            <div className="absolute inset-0 bg-white/90 dark:bg-[#0A0A0A]/90 backdrop-blur-sm z-20 flex flex-col items-center justify-center text-center p-6 animate-in fade-in duration-500">
+                                <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center text-white mb-4 shadow-lg shadow-green-200 dark:shadow-none">
+                                    <CheckCircle2 size={32} strokeWidth={3} />
+                                </div>
+                                <h4 className="text-lg font-black text-gray-900 dark:text-white mb-1 transition-colors">Under Review</h4>
+                                <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest leading-relaxed transition-colors">
+                                    We've received your proof.<br />Verification in progress.
+                                </p>
+                                <button
+                                    onClick={() => { setIsSubmitted(false); setReferenceNo(''); setReceiptFile(null); }}
+                                    className="mt-6 text-[10px] font-black text-primary dark:text-accent uppercase tracking-widest hover:underline transition-colors"
+                                >
+                                    Submit Another
+                                </button>
+                            </div>
+                        )}
+
+                        <h3 className="text-base font-black text-gray-900 dark:text-white leading-tight transition-colors">Submit Proof</h3>
+
+                        <div className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1 transition-colors">Reference No.</label>
+                                <input
+                                    type="text"
+                                    value={referenceNo}
+                                    onChange={(e) => setReferenceNo(e.target.value)}
+                                    placeholder="FT2410..."
+                                    className="w-full bg-white dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-xl px-5 py-3 text-xs font-bold text-gray-900 dark:text-white outline-none focus:ring-4 focus:ring-primary/5 dark:focus:ring-primary/20 transition-all placeholder:text-gray-300 dark:placeholder:text-gray-600"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1 transition-colors">Receipt Screenshot</label>
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    className="hidden"
+                                    onChange={(e) => setReceiptFile(e.target.files?.[0]?.name || null)}
+                                />
+                                <div
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className={cn(
+                                        "w-full h-24 rounded-[20px] border-2 border-dashed flex flex-col items-center justify-center gap-2 group cursor-pointer transition-all",
+                                        receiptFile
+                                            ? "border-green-200 dark:border-green-500/20 bg-green-50/30 dark:bg-green-500/5"
+                                            : "border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-white/[0.02] hover:border-primary/50 dark:hover:border-primary/20"
+                                    )}
+                                >
+                                    {receiptFile ? (
+                                        <div className="flex flex-col items-center gap-1">
+                                            <CheckCircle2 size={24} className="text-green-500" />
+                                            <p className="text-[10px] font-black text-green-700 dark:text-green-400 truncate max-w-[180px] transition-colors">{receiptFile}</p>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <Plus size={16} className="text-accent group-hover:scale-125 transition-transform" />
+                                            <p className="text-[9px] font-bold text-gray-400 dark:text-gray-600 uppercase tracking-widest transition-colors">Select Image</p>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={handleSubmit}
+                                disabled={isSubmitting}
+                                className={cn(
+                                    "w-full py-4 rounded-xl text-white text-[10px] font-black uppercase tracking-[0.2em] shadow-2xl dark:shadow-none transition-all flex items-center justify-center gap-3",
+                                    isSubmitting ? "bg-gray-400 dark:bg-gray-800 cursor-not-allowed" : "bg-accent shadow-orange-900/10 hover:bg-orange-600 active:scale-95"
+                                )}
+                            >
+                                {isSubmitting ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        Processing...
+                                    </>
+                                ) : (
+                                    'Submit for Approval'
+                                )}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Verification Progress Card */}
+                    <div className="bg-white dark:bg-white/5 rounded-[32px] border border-gray-100 dark:border-white/5 shadow-sm p-8 flex flex-col gap-6 transition-all">
+                        <h3 className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest transition-colors">Progress</h3>
+
+                        <div className="space-y-0 text-left">
+                            <div className="flex items-center gap-4 relative">
+                                <div className={cn(
+                                    "w-7 h-7 rounded-full flex items-center justify-center text-white z-10 shrink-0 transition-colors",
+                                    isSubmitted ? "bg-green-500" : "bg-gray-100 dark:bg-white/10 text-gray-400 dark:text-gray-600"
+                                )}>
+                                    <CheckCircle2 size={14} strokeWidth={3} />
+                                </div>
+                                <div className="space-y-0.5">
+                                    <p className={cn("text-xs font-black leading-none transition-colors", isSubmitted ? "text-gray-900 dark:text-white" : "text-gray-300 dark:text-gray-700")}>Submitted</p>
+                                    <p className="text-[8px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest transition-colors">{isSubmitted ? 'Just Now' : '-'}</p>
+                                </div>
+                                <div className={cn("absolute left-3.5 top-7 w-[2px] h-8 transition-colors", isSubmitted ? "bg-green-500" : "bg-gray-100 dark:bg-white/10")}></div>
+                            </div>
+
+                            <div className="flex items-center gap-4 relative py-8 transition-colors">
+                                <div className={cn(
+                                    "w-7 h-7 rounded-full border-2 flex items-center justify-center z-10 shrink-0 relative transition-colors",
+                                    isSubmitted ? "border-accent bg-accent/10 text-accent" : "border-gray-100 dark:border-white/10 bg-white dark:bg-white/5 text-gray-200 dark:text-gray-800"
+                                )}>
+                                    {isSubmitted && <div className="w-1.5 h-1.5 bg-accent rounded-full animate-pulse transition-colors"></div>}
+                                </div>
+                                <div className="space-y-0.5">
+                                    <p className={cn("text-xs font-black leading-none transition-colors", isSubmitted ? "text-gray-900 dark:text-white" : "text-gray-300 dark:text-gray-700")}>Verifying</p>
+                                    {isSubmitted && <p className="text-[8px] font-black text-accent uppercase tracking-widest transition-colors">&lt; 1 hour</p>}
+                                </div>
+                                <div className={cn("absolute left-3.5 top-[60px] w-[2px] h-8 transition-colors", "bg-gray-100 dark:bg-white/10")}></div>
+                            </div>
+
+                            <div className="flex items-center gap-4 relative transition-colors">
+                                <div className="w-7 h-7 rounded-full border-2 border-gray-100 dark:border-white/10 bg-white dark:bg-white/5 flex items-center justify-center text-gray-300 dark:text-gray-800 z-10 shrink-0 transition-colors">
+                                </div>
+                                <div>
+                                    <p className="text-xs font-black text-gray-300 dark:text-gray-800 leading-none opacity-50 transition-colors">Active</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <p className="text-center text-[9px] font-bold text-gray-300 dark:text-gray-700 uppercase tracking-widest pt-12 transition-colors">
+                All subscription payments are non-refundable. Monthly Fee: 500 ETB. RoadHero Partner Portal v4.2
+            </p>
+        </div>
+    );
+}

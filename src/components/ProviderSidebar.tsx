@@ -52,7 +52,7 @@ export const ProviderSidebar = () => {
     const { theme, toggleTheme } = useTheme();
 
     return (
-        <aside className="w-[300px] bg-[#1E3A8A] dark:bg-black dark:border-r dark:border-white/5 min-h-screen flex flex-col text-white/70 h-screen sticky top-0 transition-colors duration-500">
+        <aside className="w-[300px] bg-gray-950 dark:bg-black dark:border-r dark:border-white/5 min-h-screen flex flex-col text-white/70 h-screen sticky top-0 transition-colors duration-500">
             {/* Logo Section */}
             <div className="p-8 pt-10">
                 <Logo className="h-7 text-white" />
@@ -69,13 +69,13 @@ export const ProviderSidebar = () => {
                             className={cn(
                                 "flex items-center gap-4 px-5 py-3.5 rounded-2xl transition-all duration-300 relative group",
                                 isActive
-                                    ? "bg-white/15 text-white shadow-lg shadow-black/10 backdrop-blur-md"
-                                    : "text-white/50 hover:bg-white/5 hover:text-white"
+                                    ? "bg-white/10 text-white shadow-lg shadow-black/10 backdrop-blur-md"
+                                    : "text-white/50 hover:bg-accent/10 hover:text-accent"
                             )}
                         >
                             <item.icon size={20} className={cn(
                                 "transition-all duration-300 group-hover:scale-110",
-                                isActive ? "text-white scale-110" : "text-white/40 group-hover:text-white"
+                                isActive ? "text-accent scale-110" : "text-white/40 group-hover:text-accent"
                             )} />
 
                             <span className={cn(
@@ -100,7 +100,7 @@ export const ProviderSidebar = () => {
                         onClick={() => setLanguage('en')}
                         className={cn(
                             "flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-[14px] transition-all duration-500",
-                            language === 'en' ? "bg-white text-[#1E3A8A] shadow-xl scale-100" : "text-white/30 hover:text-white scale-95"
+                            language === 'en' ? "bg-white text-gray-950 shadow-xl scale-100" : "text-white/30 hover:text-white scale-95"
                         )}
                     >
                         English
@@ -109,7 +109,7 @@ export const ProviderSidebar = () => {
                         onClick={() => setLanguage('am')}
                         className={cn(
                             "flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-[14px] transition-all duration-500",
-                            language === 'am' ? "bg-white text-[#1E3A8A] shadow-xl scale-100" : "text-white/30 hover:text-white scale-95"
+                            language === 'am' ? "bg-white text-gray-950 shadow-xl scale-100" : "text-white/30 hover:text-white scale-95"
                         )}
                     >
                         አማርኛ
@@ -138,7 +138,7 @@ export const ProviderSidebar = () => {
             </nav>
 
             {/* Footer Profile Section */}
-            <div className="p-8 border-t border-white/10 bg-[#1E3A8A] dark:bg-black transition-colors duration-500">
+            <div className="p-8 border-t border-white/10 bg-gray-950 dark:bg-black transition-colors duration-500">
                 <div className="flex items-center gap-4 group">
                     <div className="w-12 h-12 bg-white/20 dark:bg-white/5 rounded-full flex items-center justify-center font-bold text-white text-lg shrink-0 border border-white/10">
                         A

@@ -48,11 +48,11 @@ export const AdminSidebar = () => {
                             key={item.href}
                             href={item.href}
                             className={cn(
-                                "flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-300 group hover:text-white",
-                                isActive ? "bg-white/10 text-white font-bold" : "hover:bg-white/5"
+                                "flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-300 group hover:text-accent",
+                                isActive ? "bg-accent/10 text-accent font-bold" : "hover:bg-accent/5"
                             )}
                         >
-                            <item.icon size={20} className={cn(isActive ? "text-white" : "text-gray-600 group-hover:text-white")} />
+                            <item.icon size={20} className={cn(isActive ? "text-accent" : "text-gray-600 group-hover:text-accent")} />
                             <span className="flex-1 text-sm">{item.name}</span>
                             {item.badge && (
                                 <div className="bg-accent text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-lg shadow-orange-900/20">

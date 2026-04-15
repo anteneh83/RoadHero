@@ -10,7 +10,7 @@ import dynamic from 'next/dynamic';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { authService, onboardingService } from '@/services/api.service';
-import { uploadToCloudinary } from '@/services/cloudinary.service';
+import { uploadService } from '@/services/upload.service';
 
 const InteractiveMap = dynamic(() => import('@/components/InteractiveMap'), { ssr: false });
 
@@ -92,7 +92,7 @@ function RegisterContent() {
         setUploading(true);
         setFileName(file.name);
         try {
-            const url = await uploadToCloudinary(file);
+            const url = await uploadService.uploadFile(file);
             setUrl(url);
             showToast(`${file.name} uploaded successfully!`, "success");
         } catch (error: any) {

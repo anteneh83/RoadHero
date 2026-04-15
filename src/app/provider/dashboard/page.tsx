@@ -22,7 +22,7 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { useState, useEffect } from 'react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { providerService, DashboardMetrics, ProfileData, subscriptionService, SubscriptionStatus } from '@/services/api.service';
+import { providerService, jobService, DashboardMetrics, ProfileData, subscriptionService, SubscriptionStatus } from '@/services/api.service';
 
 function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
@@ -82,21 +82,54 @@ export default function RefinedDashboardPage() {
 
     useEffect(() => {
         fetchMetrics();
+
+        // Real-time Dashboard Polling
+        const interval = setInterval(() => {
+            fetchMetrics(true);
+        }, 15000);
+
+        return () => clearInterval(interval);
     }, []);
 
-    const fetchMetrics = async () => {
+    const fetchMetrics = async (isPolling = false) => {
         try {
-            const [metricsRes, profileRes] = await Promise.all([
+            if (!isPolling) setIsLoading(true);
+
+            const [metricsRes, profileRes, pendingJobsRes] = await Promise.allSettled([
                 providerService.getDashboardMetrics(),
-                providerService.getProfile()
+                providerService.getProfile(),
+                jobService.list({ status: 'PENDING' })
             ]);
 
-            if (metricsRes.status === 'success') {
-                setMetrics(metricsRes.data);
+            let metricsData = null;
+            if (metricsRes.status === 'fulfilled' && metricsRes.value) {
+                metricsData = metricsRes.value.data || metricsRes.value;
             }
-            if (profileRes.status === 'success') {
-                setProfile(profileRes.data);
-                setIsOnline(profileRes.data.is_online);
+
+            let rawPendingJobs = [];
+            if (pendingJobsRes.status === 'fulfilled' && pendingJobsRes.value) {
+                const pendVal = pendingJobsRes.value;
+                rawPendingJobs = Array.isArray(pendVal.data) ? pendVal.data : (pendVal.data?.results || pendVal.results || (Array.isArray(pendVal) ? pendVal : []));
+            }
+
+            setMetrics(prev => ({
+                ...(metricsData || prev || {
+                    today_jobs: 0,
+                    total_revenue_today: 0,
+                    active_technicians: 0,
+                    pending_requests: 0,
+                    avg_rating: 0,
+                    total_jobs_this_month: 0,
+                    subscription_status: 'UNKNOWN',
+                    subscription_days_remaining: 0
+                }),
+                pending_requests: rawPendingJobs.length
+            }));
+
+            if (profileRes.status === 'fulfilled' && profileRes.value) {
+                const profileData = profileRes.value.data || profileRes.value;
+                setProfile(profileData);
+                if (!isPolling) setIsOnline(profileData.is_online);
             }
 
             // Fetch subscription status in the background to avoid blocking
@@ -108,7 +141,7 @@ export default function RefinedDashboardPage() {
         } catch (error) {
             console.error("Failed to fetch dashboard data:", error);
         } finally {
-            setIsLoading(false);
+            if (!isPolling) setIsLoading(false);
         }
     };
 

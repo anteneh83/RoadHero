@@ -63,6 +63,7 @@ interface MapProps {
         label?: string;
         draggable?: boolean;
         onDragEnd?: (lat: number, lng: number) => void;
+        onClick?: () => void;
     }[];
     polyline?: [number, number][];
     className?: string;
@@ -107,6 +108,11 @@ export default function Map({ center, zoom = 13, markers = [], polyline, classNa
                                 marker.onDragEnd(latLng.lat, latLng.lng);
                             }
                         },
+                        click: () => {
+                            if (marker.onClick) {
+                                marker.onClick();
+                            }
+                        }
                     }}
                 >
                     {marker.label && (

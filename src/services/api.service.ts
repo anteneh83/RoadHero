@@ -115,6 +115,18 @@ export interface UpdateServicePayload {
     is_visible?: boolean;
 }
 
+// Utility Interfaces
+export interface UploadUrlPayload {
+    file_name: string;
+    content_type?: string;
+}
+
+export interface UploadUrlResponse {
+    url: string;
+    fields: Record<string, string>;
+    file_url: string;
+}
+
 // Revenue Interfaces
 export interface Transaction {
     id: string | number;
@@ -229,6 +241,23 @@ export interface Job {
     eta_minutes?: number;
     total_amount_collected?: number;
     payment_method?: string;
+}
+
+export interface Message {
+    id: number;
+    sender_name: string;
+    content: string;
+    created_at: string;
+    is_me?: boolean;
+}
+
+export interface Notification {
+    id: number;
+    title: string;
+    message: string;
+    type: 'INFO' | 'WARNING' | 'ALERT' | 'SUCCESS';
+    is_read: boolean;
+    created_at: string;
 }
 
 export interface AcceptJobPayload {
@@ -383,6 +412,28 @@ export const jobService = {
     },
     finalize: async (id: number, payload: FinalizeJobPayload) => {
         const response = await api.post(`provider/jobs/${id}/finalize`, payload);
+        return response.data;
+    },
+    getMessages: async (id: number) => {
+        const response = await api.get(`provider/jobs/${id}/messages`);
+        return response.data;
+    },
+    sendMessage: async (id: number, payload: { content: string }) => {
+        const response = await api.post(`provider/jobs/${id}/messages`, payload);
+        return response.data;
+    },
+};
+
+export const notificationService = {
+    list: async () => {
+        const response = await api.get('provider/notifications/');
+        return response.data;
+    },
+};
+
+export const utilService = {
+    getUploadUrl: async (payload: UploadUrlPayload) => {
+        const response = await api.post('provider/utils/upload-url', payload);
         return response.data;
     },
 };

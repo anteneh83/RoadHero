@@ -25,6 +25,7 @@ interface MapWrapperProps {
         label?: string;
         draggable?: boolean;
         onDragEnd?: (lat: number, lng: number) => void;
+        onClick?: () => void;
     }[];
     polyline?: [number, number][];
     className?: string;

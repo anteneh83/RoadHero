@@ -67,11 +67,22 @@ export default function RequestQueuePage() {
             ]);
 
             console.log("[Job Queue] Jobs Response:", jobsRes);
-            const jobsData = jobsRes.data?.results || jobsRes.results || (Array.isArray(jobsRes) ? jobsRes : []);
+            const rawJobs = Array.isArray(jobsRes.data) ? jobsRes.data : (jobsRes.data?.results || jobsRes.results || (Array.isArray(jobsRes) ? jobsRes : []));
+
+            // Map the API response fields to what the UI expects (e.g., driver_name -> customer_name)
+            const jobsData = rawJobs.map((job: any) => ({
+                ...job,
+                customer_name: job.customer_name || job.driver_name || 'Unknown',
+                customer_phone: job.customer_phone || job.driver_phone,
+                customer_lat: job.customer_lat || job.latitude || 9.0049,
+                customer_lng: job.customer_lng || job.longitude || 38.7670,
+                distance: job.distance || job.address || 'Location provided'
+            }));
+
             setJobs(jobsData);
 
             const techsData = techsRes.data || techsRes;
-            setTechnicians(Array.isArray(techsData) ? techsData.filter(t => t.is_active) : []);
+            setTechnicians(Array.isArray(techsData) ? techsData.filter((t: any) => t.is_active) : []);
 
             if (jobsData.length > 0 && !selectedJobId) {
                 setSelectedJobId(jobsData[0].id);
@@ -368,9 +379,9 @@ export default function RequestQueuePage() {
                                     onChange={(e) => setSelectedTechId(e.target.value)}
                                     className="w-full bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl px-6 py-4 text-xs font-bold text-gray-900 dark:text-white outline-none focus:ring-4 focus:ring-primary/5 transition-all shadow-inner appearance-none"
                                 >
-                                    <option value="">Select a Technician</option>
+                                    <option value="" className="bg-white dark:bg-[#0A0A0A] text-gray-900 dark:text-white p-2">Select a Technician</option>
                                     {technicians.map(tech => (
-                                        <option key={tech.id} value={tech.id}>{tech.full_name}</option>
+                                        <option key={tech.id} value={tech.id} className="bg-white dark:bg-[#0A0A0A] text-gray-900 dark:text-white p-2">{tech.full_name}</option>
                                     ))}
                                 </select>
                             </div>

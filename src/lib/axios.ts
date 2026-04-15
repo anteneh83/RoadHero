@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-    baseURL: 'http://34.254.56.65/api/v1/',
+    baseURL: 'https://34.254.56.65/api/v1/',
     headers: {
         'Content-Type': 'application/json',
     },
@@ -82,7 +82,7 @@ api.interceptors.response.use(
             }
 
             try {
-                const response = await axios.post('http://34.254.56.65/api/v1/provider/auth/token/refresh/', {
+                const response = await axios.post('https://34.254.56.65/api/v1/provider/auth/token/refresh/', {
                     refresh: refreshToken,
                 });
 

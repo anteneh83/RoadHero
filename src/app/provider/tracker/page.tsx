@@ -58,7 +58,16 @@ export default function JobTrackerPage() {
         try {
             // Fetch all active statuses
             const response = await jobService.list();
-            const allJobs: Job[] = response.data?.results || response.results || (Array.isArray(response) ? response : []);
+            const rawJobs = Array.isArray(response.data) ? response.data : (response.data?.results || response.results || (Array.isArray(response) ? response : []));
+
+            const allJobs: Job[] = rawJobs.map((job: any) => ({
+                ...job,
+                customer_name: job.customer_name || job.driver_name || 'Unknown',
+                customer_phone: job.customer_phone || job.driver_phone,
+                customer_lat: job.customer_lat || job.latitude || 9.0049,
+                customer_lng: job.customer_lng || job.longitude || 38.7670,
+                distance: job.distance || job.address || 'Location provided'
+            }));
 
             const activeJobs = allJobs.filter(j =>
                 ['ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'IN_PROGRESS'].includes(j.status)
@@ -268,7 +277,12 @@ export default function JobTrackerPage() {
                                 zoom={15}
                                 markers={[
                                     { position: garageLocation, type: 'garage', label: 'Garage' },
-                                    { position: [selectedJob.customer_lat, selectedJob.customer_lng], type: 'customer', label: selectedJob.customer_name }
+                                    ...jobs.map(j => ({
+                                        position: [j.customer_lat, j.customer_lng] as [number, number],
+                                        type: j.id === selectedJobId ? 'customer' as const : 'default' as const,
+                                        label: j.customer_name,
+                                        onClick: () => setSelectedJobId(j.id)
+                                    }))
                                 ]}
                                 polyline={[garageLocation, [selectedJob.customer_lat, selectedJob.customer_lng]]}
                             />

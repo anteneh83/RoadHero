@@ -40,6 +40,10 @@ export interface DashboardMetrics {
     total_jobs_this_month: number;
     subscription_status: string;
     subscription_days_remaining: number;
+    revenue_data?: Array<{ day?: string, date?: string, amount?: number, total?: number }>;
+    technician_data?: Array<{ name?: string, jobs?: number, rating?: number }>;
+    category_data?: Array<{ name?: string, count?: number, color?: string }>;
+    recent_activity?: Array<{ type?: string, label?: string, details?: string, color?: string }>;
 }
 
 export interface ProfileSettingsPayload {
@@ -48,6 +52,43 @@ export interface ProfileSettingsPayload {
     telegram_channel?: string;
     address_instructions?: string;
     gallery_urls?: string[];
+}
+
+export interface NotificationPreferences {
+    push_notifications: boolean;
+    email_notifications: boolean;
+}
+
+export interface ChangePasswordPayload {
+    current_password: string;
+    new_password: string;
+    confirm_password: string;
+}
+
+export interface ServiceCategory {
+    id: number;
+    name: string;
+    icon_url: string;
+}
+
+export interface ServiceOffer {
+    id: number;
+    name: string;
+    base_price: number;
+    is_visible: boolean;
+    category?: number | string;
+}
+
+export interface Technician {
+    id: number;
+    full_name: string;
+    phone_number: string;
+    specialties: string[];
+    is_active: boolean;
+    assigned_vehicle_plate?: string;
+    photo_url?: string;
+    rating?: string;
+    created_at?: string;
 }
 
 export interface ProfileData {
@@ -262,6 +303,7 @@ export interface Notification {
 
 export interface AcceptJobPayload {
     technician_id?: number;
+    technician?: number;
     eta_minutes?: number;
 }
 
@@ -322,12 +364,29 @@ export const providerService = {
         const response = await api.get('provider/profile/settings');
         return response.data;
     },
-    updateProfileSettings: async (payload: ProfileSettingsPayload) => {
-        const response = await api.patch('provider/profile/settings', payload);
+    updateProfileSettings: async (payload: ProfileSettingsPayload | FormData) => {
+        const headers = payload instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {};
+        const response = await api.patch('provider/profile/settings', payload, { headers });
+        return response.data;
+    },
+    getAvailability: async () => {
+        const response = await api.get('provider/profile/availability');
         return response.data;
     },
     updateAvailability: async (payload: AvailabilityPayload) => {
         const response = await api.patch('provider/profile/availability', payload);
+        return response.data;
+    },
+    getNotificationPreferences: async () => {
+        const response = await api.get('provider/profile/notification-preferences');
+        return response.data;
+    },
+    updateNotificationPreferences: async (payload: Partial<NotificationPreferences>) => {
+        const response = await api.patch('provider/profile/notification-preferences', payload);
+        return response.data;
+    },
+    changePassword: async (payload: ChangePasswordPayload) => {
+        const response = await api.post('provider/profile/change-password', payload);
         return response.data;
     },
 };
@@ -337,16 +396,19 @@ export const technicianService = {
         const response = await api.get('provider/technicians/');
         return response.data;
     },
-    add: async (payload: AddTechnicianPayload) => {
-        const response = await api.post('provider/technicians/', payload);
+    add: async (formData: FormData) => {
+        const response = await api.post('provider/technicians/', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
         return response.data;
     },
     get: async (id: number) => {
         const response = await api.get(`provider/technicians/${id}`);
         return response.data;
     },
-    update: async (id: number, payload: UpdateTechnicianPayload) => {
-        const response = await api.put(`provider/technicians/${id}`, payload);
+    update: async (id: number, payload: Partial<Technician> | FormData) => {
+        const headers = payload instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {};
+        const response = await api.put(`provider/technicians/${id}`, payload, { headers });
         return response.data;
     },
     delete: async (id: number) => {
@@ -356,16 +418,28 @@ export const technicianService = {
 };
 
 export const serviceCatalogService = {
+    listCategories: async () => {
+        const response = await api.get('provider/services/categories');
+        return response.data;
+    },
     list: async () => {
         const response = await api.get('provider/services/');
         return response.data;
     },
-    add: async (payload: AddServicePayload) => {
+    add: async (payload: Partial<ServiceOffer>) => {
         const response = await api.post('provider/services/', payload);
         return response.data;
     },
-    update: async (id: number, payload: UpdateServicePayload) => {
+    get: async (id: number) => {
+        const response = await api.get(`provider/services/${id}`);
+        return response.data;
+    },
+    update: async (id: number, payload: Partial<ServiceOffer>) => {
         const response = await api.patch(`provider/services/${id}`, payload);
+        return response.data;
+    },
+    delete: async (id: number) => {
+        const response = await api.delete(`provider/services/${id}`);
         return response.data;
     },
 };
@@ -389,6 +463,10 @@ export const inventoryService = {
     },
     deduct: async (id: number, payload: DeductInventoryPayload) => {
         const response = await api.patch(`provider/inventory/${id}/deduct`, payload);
+        return response.data;
+    },
+    delete: async (id: number) => {
+        const response = await api.delete(`provider/inventory/${id}`);
         return response.data;
     },
 };
@@ -477,4 +555,80 @@ export const reviewService = {
         const response = await api.post(`provider/reviews/${id}/reply`, payload);
         return response.data;
     },
+    resolve: async (id: number, payload?: { resolution_note?: string }) => {
+        const response = await api.patch(`provider/reviews/${id}/resolve`, payload || {});
+        return response.data;
+    },
+};
+
+// ==========================================
+// Support & Disputes Services
+// ==========================================
+
+export interface SupportThread {
+    id: number;
+    thread_type: 'SUPPORT' | 'DISPUTE';
+    status: 'OPEN' | 'RESOLVED' | 'CLOSED';
+    subject: string;
+    other_party?: {
+        id: number;
+        name: string;
+        role: string;
+    };
+    related_job_id?: number | null;
+    last_message?: string;
+    last_message_at?: string;
+    created_at: string;
+}
+
+export interface SupportMessage {
+    id: number;
+    sender: {
+        id: number;
+        name: string;
+        role: string;
+    };
+    content: string;
+    attachment_url?: string;
+    created_at: string;
+}
+
+export interface CreateThreadPayload {
+    participant_id: number;
+    thread_type?: 'SUPPORT' | 'DISPUTE';
+    subject?: string;
+    related_job_id?: number;
+    message?: string;
+}
+
+export interface SendMessagePayload {
+    content: string;
+    attachment_url?: string;
+}
+
+export interface ResolveThreadPayload {
+    resolution_note?: string;
+}
+
+export const supportService = {
+    listThreads: async (status?: 'OPEN' | 'RESOLVED' | 'CLOSED') => {
+        const response = await api.get('provider/support/threads', { params: status ? { status } : {} });
+        return response.data;
+    },
+    createThread: async (payload: CreateThreadPayload) => {
+        const response = await api.post('provider/support/threads', payload);
+        return response.data;
+    },
+    getMessages: async (threadId: number) => {
+        const response = await api.get(`provider/support/threads/${threadId}/messages`);
+        return response.data;
+    },
+    sendMessage: async (threadId: number, payload: SendMessagePayload) => {
+        const response = await api.post(`provider/support/threads/${threadId}/messages`, payload);
+        return response.data;
+    },
+    resolveThread: async (threadId: number, payload?: ResolveThreadPayload) => {
+        const response = await api.patch(`provider/support/threads/${threadId}/resolve`, payload || {});
+        return response.data;
+    }
 };

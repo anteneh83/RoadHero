@@ -11,7 +11,7 @@ export default function PendingVerificationPage() {
         <main className="min-h-screen bg-white dark:bg-black flex flex-col transition-colors duration-500 overflow-x-hidden">
             <PublicHeader />
 
-            <div className="flex-1 flex flex-col items-center justify-center p-8 relative">
+            <div className="flex-1 flex flex-col items-center justify-center p-8 pt-20 relative">
                 <div className="absolute top-1/4 right-0 w-80 h-80 bg-primary/5 rounded-full blur-[100px] -z-10" />
                 <div className="absolute bottom-1/4 left-0 w-80 h-80 bg-accent/5 rounded-full blur-[100px] -z-10" />
 

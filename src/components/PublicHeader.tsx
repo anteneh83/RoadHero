@@ -19,7 +19,7 @@ export const PublicHeader = () => {
     const [isLangOpen, setIsLangOpen] = useState(false);
 
     return (
-        <header className="w-full bg-white/80 dark:bg-black/80 backdrop-blur-xl border-b border-gray-100 dark:border-white/5 sticky top-0 z-[100] transition-colors duration-500">
+        <header className="w-full bg-gradient-to-b from-white/95 via-white/80 to-white/70 dark:from-black/95 dark:via-black/80 dark:to-black/70 backdrop-blur-xl border-b border-gray-100 dark:border-white/5 fixed top-0 left-0 right-0 z-[100] transition-all duration-500">
             <div className="max-w-7xl mx-auto px-8 py-5 flex justify-between items-center">
                 <Link href="/" className="hover:opacity-80 transition-opacity">
                     <Logo className="h-8 w-auto text-gray-900 dark:text-white" />

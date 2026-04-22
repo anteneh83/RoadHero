@@ -17,12 +17,15 @@ import {
     Trash2,
     AlertCircle,
     ArrowUpRight,
-    Loader2
+    Loader2,
+    Eye,
+    EyeOff
 } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { providerService, ProfileSettingsPayload, ProfileData } from '@/services/api.service';
+import { DashboardHeader } from '@/components/DashboardHeader';
 import { useEffect } from 'react';
 
 function cn(...inputs: ClassValue[]) {
@@ -63,6 +66,23 @@ export default function SettingsPage() {
     const [facebookUrl, setFacebookUrl] = useState('');
     const [telegramChannel, setTelegramChannel] = useState('');
     const [profile, setProfile] = useState<ProfileData | null>(null);
+    const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
+
+    // Security State
+    const [currentPassword, setCurrentPassword] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+
+    // Notification State
+    const [pushNotifications, setPushNotifications] = useState(true);
+    const [emailNotifications, setEmailNotifications] = useState(false);
+    const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
+
+    // Visibility States
+    const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+    const [showNewPassword, setShowNewPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -84,7 +104,20 @@ export default function SettingsPage() {
             }
         };
 
+        const fetchNotifications = async () => {
+            try {
+                const response = await providerService.getNotificationPreferences();
+                if (response.status === 'success' || response.success) {
+                    setPushNotifications(response.data.push_notifications);
+                    setEmailNotifications(response.data.email_notifications);
+                }
+            } catch (error) {
+                console.error("Failed to fetch notification preferences:", error);
+            }
+        };
+
         fetchProfile();
+        fetchNotifications();
     }, []);
 
     // Gallery State
@@ -105,6 +138,8 @@ export default function SettingsPage() {
         if (file) {
             const url = URL.createObjectURL(file);
             setPhotos(prev => [...prev, { id: Date.now(), url }]);
+            setGalleryFiles(prev => [...prev, file]);
+            setUnsavedChanges(true);
             window.dispatchEvent(new CustomEvent('show-toast', {
                 detail: { message: "Photo added to gallery successfully!", type: 'success' }
             }));
@@ -122,22 +157,26 @@ export default function SettingsPage() {
     const handleSaveSettings = async () => {
         setIsSaving(true);
         try {
-            const payload: ProfileSettingsPayload = {
-                public_phone: publicPhone,
-                address_instructions: addressInstructions,
-                facebook_url: facebookUrl,
-                telegram_channel: telegramChannel,
-                gallery_urls: photos.map(p => p.url)
-            };
+            const formData = new FormData();
+            if (publicPhone) formData.append('public_phone', publicPhone);
+            if (addressInstructions) formData.append('address_instructions', addressInstructions);
+            if (facebookUrl) formData.append('facebook_url', facebookUrl);
+            if (telegramChannel) formData.append('telegram_channel', telegramChannel);
 
-            console.log("[Profile Settings] Saving Payload:", payload);
+            // Append gallery images
+            galleryFiles.forEach(file => {
+                formData.append('gallery_images', file);
+            });
 
-            const response = await providerService.updateProfileSettings(payload);
+            console.log("[Profile Settings] Saving Multipart Data...");
+
+            const response = await providerService.updateProfileSettings(formData);
             console.log("[Profile Settings] API Response:", response);
 
             if (response.status === 'success' || response.success === true) {
                 console.log("[Profile Settings] Successfully updated profile.");
                 setUnsavedChanges(false);
+                setGalleryFiles([]); // Clear tracked files after success
                 window.dispatchEvent(new CustomEvent('show-toast', {
                     detail: { message: response.message || "Settings saved successfully", type: 'success' }
                 }));
@@ -152,6 +191,76 @@ export default function SettingsPage() {
             }));
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    const handleUpdatePassword = async () => {
+        if (!currentPassword || !newPassword || !confirmPassword) {
+            window.dispatchEvent(new CustomEvent('show-toast', {
+                detail: { message: "All password fields are required", type: 'error' }
+            }));
+            return;
+        }
+
+        if (newPassword !== confirmPassword) {
+            window.dispatchEvent(new CustomEvent('show-toast', {
+                detail: { message: "Passwords do not match", type: 'error' }
+            }));
+            return;
+        }
+
+        if (newPassword.length < 8) {
+            window.dispatchEvent(new CustomEvent('show-toast', {
+                detail: { message: "New password must be at least 8 characters", type: 'error' }
+            }));
+            return;
+        }
+
+        setIsUpdatingPassword(true);
+        try {
+            const response = await providerService.changePassword({
+                current_password: currentPassword,
+                new_password: newPassword,
+                confirm_password: confirmPassword
+            });
+
+            if (response.status === 'success' || response.success) {
+                window.dispatchEvent(new CustomEvent('show-toast', {
+                    detail: { message: response.message || "Password changed successfully", type: 'success' }
+                }));
+                setCurrentPassword('');
+                setNewPassword('');
+                setConfirmPassword('');
+                setActiveTab('general');
+            }
+        } catch (error: any) {
+            window.dispatchEvent(new CustomEvent('show-toast', {
+                detail: { message: error.response?.data?.message || "Failed to change password", type: 'error' }
+            }));
+        } finally {
+            setIsUpdatingPassword(false);
+        }
+    };
+
+    const handleSaveNotifications = async () => {
+        setIsLoadingNotifications(true);
+        try {
+            const response = await providerService.updateNotificationPreferences({
+                push_notifications: pushNotifications,
+                email_notifications: emailNotifications
+            });
+
+            if (response.status === 'success' || response.success) {
+                window.dispatchEvent(new CustomEvent('show-toast', {
+                    detail: { message: response.message || "Preferences updated", type: 'success' }
+                }));
+            }
+        } catch (error: any) {
+            window.dispatchEvent(new CustomEvent('show-toast', {
+                detail: { message: "Failed to update notification preferences", type: 'error' }
+            }));
+        } finally {
+            setIsLoadingNotifications(false);
         }
     };
 
@@ -301,30 +410,65 @@ export default function SettingsPage() {
                             <div className="max-w-xl space-y-6">
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1 transition-colors">Current Password</label>
-                                    <input
-                                        type="password"
-                                        defaultValue="************"
-                                        className="w-full bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl px-6 py-4 text-sm font-bold text-gray-900 dark:text-white outline-none focus:ring-4 focus:ring-primary/5 dark:focus:ring-accent/10 transition-all"
-                                    />
+                                    <div className="relative group">
+                                        <input
+                                            type={showCurrentPassword ? "text" : "password"}
+                                            value={currentPassword}
+                                            onChange={(e) => setCurrentPassword(e.target.value)}
+                                            className="w-full bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl px-6 py-4 text-sm font-bold text-gray-900 dark:text-white outline-none focus:ring-4 focus:ring-primary/5 dark:focus:ring-accent/10 transition-all pr-14"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                                            className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                                        >
+                                            {showCurrentPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1 transition-colors">New Password</label>
-                                    <input
-                                        type="password"
-                                        defaultValue="StrongPass123!"
-                                        className="w-full bg-white dark:bg-white/5 border-2 border-primary/20 dark:border-primary/40 rounded-2xl px-6 py-4 text-sm font-bold text-gray-900 dark:text-white outline-none focus:border-primary dark:focus:border-accent focus:ring-4 focus:ring-primary/5 dark:focus:ring-accent/10 transition-all"
-                                    />
+                                    <div className="relative group">
+                                        <input
+                                            type={showNewPassword ? "text" : "password"}
+                                            value={newPassword}
+                                            onChange={(e) => setNewPassword(e.target.value)}
+                                            className="w-full bg-white dark:bg-white/5 border-2 border-primary/20 dark:border-primary/40 rounded-2xl px-6 py-4 text-sm font-bold text-gray-900 dark:text-white outline-none focus:border-primary dark:focus:border-accent focus:ring-4 focus:ring-primary/5 dark:focus:ring-accent/10 transition-all pr-14"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowNewPassword(!showNewPassword)}
+                                            className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                                        >
+                                            {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1 transition-colors">Confirm New Password</label>
-                                    <input
-                                        type="password"
-                                        defaultValue="StrongPass123!"
-                                        className="w-full bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl px-6 py-4 text-sm font-bold text-gray-900 dark:text-white outline-none focus:ring-4 focus:ring-primary/5 dark:focus:ring-accent/10 transition-all"
-                                    />
+                                    <div className="relative group">
+                                        <input
+                                            type={showConfirmPassword ? "text" : "password"}
+                                            value={confirmPassword}
+                                            onChange={(e) => setConfirmPassword(e.target.value)}
+                                            className="w-full bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl px-6 py-4 text-sm font-bold text-gray-900 dark:text-white outline-none focus:ring-4 focus:ring-primary/5 dark:focus:ring-accent/10 transition-all pr-14"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                            className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                                        >
+                                            {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="flex justify-end pt-2">
-                                    <button className="bg-primary dark:bg-accent text-white px-6 py-3 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] shadow-xl shadow-blue-900/10 dark:shadow-none hover:bg-blue-950 dark:hover:bg-accent/80 transition-all active:scale-95">
+                                    <button
+                                        onClick={handleUpdatePassword}
+                                        disabled={isUpdatingPassword}
+                                        className="bg-primary dark:bg-accent text-white px-6 py-3 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] shadow-xl shadow-blue-900/10 dark:shadow-none hover:bg-blue-950 dark:hover:bg-accent/80 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
+                                    >
+                                        {isUpdatingPassword && <Loader2 size={12} className="animate-spin" />}
                                         Update Password
                                     </button>
                                 </div>
@@ -358,63 +502,24 @@ export default function SettingsPage() {
                                 <NotificationItem
                                     title={t('push_notifications')}
                                     desc={t('new_request_desc')}
-                                    active={true}
-                                    onToggle={() => { }}
+                                    active={pushNotifications}
+                                    onToggle={() => setPushNotifications(!pushNotifications)}
                                 />
-                                <NotificationItem
-                                    title={t('sms_alerts')}
-                                    desc="Urgent SMS for new requests."
-                                    active={false}
-                                    onToggle={() => { }}
-                                />
-                            </div>
-                        </div>
-
-                        {/* Financial Alerts */}
-                        <div className="space-y-6">
-                            <div className="flex items-center gap-4 ml-2">
-                                <div className="w-1.5 h-6 bg-green-500 rounded-full"></div>
-                                <h4 className="text-[13px] font-black text-gray-900 dark:text-white uppercase tracking-widest">{t('payment_confirmation')}</h4>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <NotificationItem
                                     title={t('email_alerts')}
-                                    desc={t('payment_desc')}
-                                    active={true}
-                                    onToggle={() => { }}
-                                />
-                                <NotificationItem
-                                    title={t('push_notifications')}
-                                    desc="Instant payment alerts."
-                                    active={true}
-                                    onToggle={() => { }}
+                                    desc="Urgent email alerts for account activity."
+                                    active={emailNotifications}
+                                    onToggle={() => setEmailNotifications(!emailNotifications)}
                                 />
                             </div>
                         </div>
 
-                        {/* System & Audio */}
-                        <div className="space-y-6">
-                            <div className="flex items-center gap-4 ml-2">
-                                <div className="w-1.5 h-6 bg-primary rounded-full"></div>
-                                <h4 className="text-[13px] font-black text-gray-900 dark:text-white uppercase tracking-widest">System & Audio</h4>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <NotificationItem
-                                    title={t('sound_alerts')}
-                                    desc={t('sound_desc')}
-                                    active={true}
-                                    onToggle={() => { }}
-                                />
-                                <NotificationItem
-                                    title={t('system_updates')}
-                                    desc={t('system_desc')}
-                                    active={false}
-                                    onToggle={() => { }}
-                                />
-                            </div>
-                        </div>
-
-                        <button className="w-full py-5 bg-gray-900 dark:bg-accent text-white rounded-[28px] text-[10px] font-black uppercase tracking-[0.2em] shadow-2xl hover:bg-black dark:hover:bg-accent/80 transition-all active:scale-95">
+                        <button
+                            onClick={handleSaveNotifications}
+                            disabled={isLoadingNotifications}
+                            className="w-full py-5 bg-gray-900 dark:bg-accent text-white rounded-[28px] text-[10px] font-black uppercase tracking-[0.2em] shadow-2xl hover:bg-black dark:hover:bg-accent/80 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                            {isLoadingNotifications && <Loader2 size={16} className="animate-spin" />}
                             {t('save_preferences')}
                         </button>
                     </div>
@@ -425,96 +530,93 @@ export default function SettingsPage() {
     };
 
     return (
-        <div className="min-h-full flex flex-col gap-8 pb-32">
-            {/* Header Area */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                <div>
-                    <h1 className="text-xl font-black text-[#171717] dark:text-white transition-colors">{t('settings')}</h1>
-                    <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-1">{t('configure_profile')}</p>
-                </div>
-                <div className="bg-orange-50 dark:bg-orange-500/10 px-3 py-1.5 rounded-xl border border-orange-100 dark:border-orange-500/20 transition-colors">
-                    <span className="text-[9px] font-black text-orange-600 dark:text-orange-400 uppercase tracking-widest">Trial: 12 Days</span>
-                </div>
-            </div>
+        <div className="flex flex-col min-h-screen">
+            <DashboardHeader
+                title={t('settings')}
+                subtitle={t('configure_profile')}
+            />
 
-            <div className="flex flex-col lg:flex-row gap-8 items-start">
-                {/* Sidebar Tabs */}
-                <div className="w-full lg:w-80 bg-white/70 dark:bg-white/5 backdrop-blur-md rounded-[32px] border border-white/40 dark:border-white/5 shadow-xl shadow-primary/5 p-4 sticky top-10 hover:shadow-2xl transition-all duration-700">
-                    <div className="space-y-2">
-                        {tabs.map((tab) => (
-                            <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id as Tab)}
-                                className={cn(
-                                    "w-full flex items-center gap-4 px-6 py-4 rounded-2xl transition-all duration-500 text-left relative group overflow-hidden",
-                                    activeTab === tab.id
-                                        ? "bg-primary text-white shadow-2xl shadow-primary/20 scale-[1.02] z-10"
-                                        : "text-gray-400 dark:text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50/80 dark:hover:bg-white/10"
-                                )}
-                            >
-                                <tab.icon size={18} className={cn(
-                                    "transition-all duration-500",
-                                    activeTab === tab.id ? "scale-110" : "group-hover:scale-110 group-hover:text-primary"
-                                )} />
-                                <span className="text-[11px] font-black uppercase tracking-[0.15em]">{tab.name}</span>
+            <div className="p-8 lg:p-12 min-h-full flex flex-col gap-8 pb-32">
 
-                                {activeTab === tab.id && (
-                                    <div className="ml-auto animate-pulse">
-                                        <ArrowUpRight size={14} className="opacity-40" />
-                                    </div>
-                                )}
-                            </button>
-                        ))}
-                    </div>
+                <div className="flex flex-col lg:flex-row gap-8 items-start">
+                    {/* Sidebar Tabs */}
+                    <div className="w-full lg:w-80 bg-white/70 dark:bg-white/5 backdrop-blur-md rounded-[32px] border border-white/40 dark:border-white/5 shadow-xl shadow-primary/5 p-4 sticky top-10 hover:shadow-2xl transition-all duration-700">
+                        <div className="space-y-2">
+                            {tabs.map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id as Tab)}
+                                    className={cn(
+                                        "w-full flex items-center gap-4 px-6 py-4 rounded-2xl transition-all duration-500 text-left relative group overflow-hidden",
+                                        activeTab === tab.id
+                                            ? "bg-primary text-white shadow-2xl shadow-primary/20 scale-[1.02] z-10"
+                                            : "text-gray-400 dark:text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50/80 dark:hover:bg-white/10"
+                                    )}
+                                >
+                                    <tab.icon size={18} className={cn(
+                                        "transition-all duration-500",
+                                        activeTab === tab.id ? "scale-110" : "group-hover:scale-110 group-hover:text-primary"
+                                    )} />
+                                    <span className="text-[11px] font-black uppercase tracking-[0.15em]">{tab.name}</span>
 
-                    <div className="mt-6 pt-6 border-t border-gray-100/50">
-                        <a
-                            href="/provider/help"
-                            className="w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-gray-400 hover:text-primary hover:bg-primary/5 transition-all duration-500 group"
-                        >
-                            <HelpCircle size={18} className="group-hover:rotate-12 transition-transform" />
-                            <span className="text-[11px] font-black uppercase tracking-[0.15em]">System Help</span>
-                        </a>
-                    </div>
-                </div>
-
-                {/* Content Area */}
-                <div className="flex-1 w-full pb-32">
-                    {renderTabContent()}
-                </div>
-            </div>
-
-            {/* Sticky Footer for Changes - Now pinned to page bottom */}
-            {unsavedChanges && (
-                <div className="sticky bottom-4 z-50 animate-in slide-in-from-bottom-4 duration-500 mt-auto">
-                    <div className="bg-gray-900/95 dark:bg-[#111111]/95 backdrop-blur-md rounded-[20px] p-2 pl-6 shadow-2xl border border-white/10 dark:border-white/5 flex items-center justify-between transition-colors">
-                        <div>
-                            <p className="text-white text-[9px] font-black uppercase tracking-widest opacity-80">Unsaved changes in profile</p>
+                                    {activeTab === tab.id && (
+                                        <div className="ml-auto animate-pulse">
+                                            <ArrowUpRight size={14} className="opacity-40" />
+                                        </div>
+                                    )}
+                                </button>
+                            ))}
                         </div>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => setUnsavedChanges(false)}
-                                disabled={isSaving}
-                                className="px-5 py-2.5 rounded-xl border border-white/20 dark:border-white/10 text-white text-[8px] font-black uppercase tracking-widest hover:bg-white/10 transition-colors disabled:opacity-50"
+
+                        <div className="mt-6 pt-6 border-t border-gray-100/50">
+                            <a
+                                href="/provider/help"
+                                className="w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-gray-400 hover:text-primary hover:bg-primary/5 transition-all duration-500 group"
                             >
-                                Discard
-                            </button>
-                            <button
-                                onClick={handleSaveSettings}
-                                disabled={isSaving}
-                                className="px-7 py-2.5 rounded-xl bg-accent text-white text-[8px] font-black uppercase tracking-widest shadow-xl shadow-orange-900/40 dark:shadow-none hover:bg-orange-600 dark:hover:bg-accent/80 active:scale-95 transition-all flex items-center gap-2 disabled:opacity-70"
-                            >
-                                {isSaving ? (
-                                    <Loader2 size={12} className="animate-spin" />
-                                ) : (
-                                    <Save size={12} />
-                                )}
-                                {isSaving ? 'Saving...' : 'Save Changes'}
-                            </button>
+                                <HelpCircle size={18} className="group-hover:rotate-12 transition-transform" />
+                                <span className="text-[11px] font-black uppercase tracking-[0.15em]">System Help</span>
+                            </a>
                         </div>
                     </div>
+
+                    {/* Content Area */}
+                    <div className="flex-1 w-full pb-32">
+                        {renderTabContent()}
+                    </div>
                 </div>
-            )}
+
+                {/* Sticky Footer for Changes - Now pinned to page bottom */}
+                {unsavedChanges && (
+                    <div className="sticky bottom-4 z-50 animate-in slide-in-from-bottom-4 duration-500 mt-auto">
+                        <div className="bg-gray-900/95 dark:bg-[#111111]/95 backdrop-blur-md rounded-[20px] p-2 pl-6 shadow-2xl border border-white/10 dark:border-white/5 flex items-center justify-between transition-colors">
+                            <div>
+                                <p className="text-white text-[9px] font-black uppercase tracking-widest opacity-80">Unsaved changes in profile</p>
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setUnsavedChanges(false)}
+                                    disabled={isSaving}
+                                    className="px-5 py-2.5 rounded-xl border border-white/20 dark:border-white/10 text-white text-[8px] font-black uppercase tracking-widest hover:bg-white/10 transition-colors disabled:opacity-50"
+                                >
+                                    Discard
+                                </button>
+                                <button
+                                    onClick={handleSaveSettings}
+                                    disabled={isSaving}
+                                    className="px-7 py-2.5 rounded-xl bg-accent text-white text-[8px] font-black uppercase tracking-widest shadow-xl shadow-orange-900/40 dark:shadow-none hover:bg-orange-600 dark:hover:bg-accent/80 active:scale-95 transition-all flex items-center gap-2 disabled:opacity-70"
+                                >
+                                    {isSaving ? (
+                                        <Loader2 size={12} className="animate-spin" />
+                                    ) : (
+                                        <Save size={12} />
+                                    )}
+                                    {isSaving ? 'Saving...' : 'Save Changes'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

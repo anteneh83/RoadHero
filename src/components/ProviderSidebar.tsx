@@ -54,10 +54,27 @@ export const ProviderSidebar = () => {
     const router = useRouter();
     const { language, setLanguage, t } = useLanguage();
     const { theme, toggleTheme } = useTheme();
-    const [profile, setProfile] = useState<ProfileData | null>(null);
+    const [profile, setProfile] = useState<any>(null);
 
     useEffect(() => {
         const fetchProfile = async () => {
+            const cachedUser = localStorage.getItem('userProfile');
+            if (cachedUser) {
+                try {
+                    const parsedUser = JSON.parse(cachedUser);
+                    const providerProf = parsedUser.provider_profile || {};
+                    setProfile({
+                        ...providerProf,
+                        phone_number: parsedUser.phone_number,
+                        rating_avg: providerProf.rating_avg,
+                        verification_status: providerProf.verification_status
+                    });
+                    return;
+                } catch (e) {
+                    console.error("Failed to parse cached user:", e);
+                }
+            }
+
             try {
                 const response = await providerService.getProfile();
                 if (response.status === 'success' || response.success) {
@@ -73,7 +90,7 @@ export const ProviderSidebar = () => {
 
     const userInitial = profile?.business_name ? profile.business_name.charAt(0).toUpperCase() : 'A';
     const businessName = profile?.business_name || 'RoadHero Partner';
-    const isVerified = profile?.account_status === 'APPROVED';
+    const isVerified = profile?.verification_status === 'APPROVED' || profile?.account_status === 'APPROVED';
 
     return (
         <aside className="w-[300px] bg-white dark:bg-black border-r border-gray-100 dark:border-white/5 min-h-screen flex flex-col text-gray-600 dark:text-white/70 h-screen sticky top-0 transition-colors duration-500">
@@ -169,13 +186,21 @@ export const ProviderSidebar = () => {
                     </div>
                     <div className="flex-1 min-w-0">
                         <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{businessName}</p>
+                        {profile?.phone_number && (
+                            <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 truncate">{profile.phone_number}</p>
+                        )}
+                        {profile?.rating_avg && (
+                            <p className="text-[10px] text-orange-500 mt-0.5 truncate flex items-center gap-1">
+                                <Star size={10} className="fill-orange-500" /> {profile.rating_avg} Rating
+                            </p>
+                        )}
                         <div className="flex items-center gap-1.5 mt-0.5">
                             <div className={cn(
                                 "w-1.5 h-1.5 rounded-full shadow-[0_0_8px_rgba(34,197,94,0.4)]",
-                                isVerified ? "bg-green-500" : "bg-orange-500"
+                                "bg-green-500"
                             )}></div>
                             <span className="text-[9px] font-medium text-gray-500 dark:text-white/30 uppercase tracking-widest">
-                                {isVerified ? t('verified_shop') : t('pending_verification')}
+                                {isVerified ? 'VERIFIED' : 'ACCOUNT_APPROVED'}
                             </span>
                         </div>
                     </div>

@@ -11,7 +11,7 @@ import {
 export default function VerificationSuccessPage() {
     return (
         <main className="min-h-screen bg-gray-50 dark:bg-black flex flex-col transition-colors duration-500">
-            {/* Standard Registration Header */}
+            {/* Standard Registration Heapromisesder */}
             <header className="bg-white dark:bg-black border-b border-gray-100 dark:border-white/5 px-6 py-3 flex justify-between items-center shadow-sm relative z-50 transition-colors">
                 <Logo />
                 <Link
@@ -100,15 +100,6 @@ export default function VerificationSuccessPage() {
                             </p>
                         </div>
                     </div>
-
-                    {/* Action */}
-                    <Link
-                        href="/provider/dashboard"
-                        className="w-full h-11 rounded-xl border border-primary dark:border-accent flex items-center justify-center text-[9px] font-black text-primary dark:text-accent uppercase tracking-[0.2em] hover:bg-primary dark:hover:bg-accent hover:text-white dark:hover:text-white transition-all active:scale-[0.98] group"
-                    >
-                        Explore Dashboard
-                        <ArrowRight size={12} className="ml-2 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
-                    </Link>
                 </div>
 
                 {/* Footer Subtext */}

@@ -13,10 +13,8 @@ export default function ProviderLayout({
             <ProviderSidebar />
             <NotificationDrawer />
             <Toast />
-            <main className="flex-1 overflow-y-auto">
-                <div className="p-8 lg:p-12">
-                    {children}
-                </div>
+            <main className="flex-1 overflow-y-auto relative">
+                {children}
             </main>
         </div>
     );

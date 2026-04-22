@@ -15,13 +15,15 @@ import {
     Loader2,
     PieChart as PieIcon,
     BarChart3 as BarIcon,
-    ChevronDown
+    ChevronDown,
+    ShieldCheck
 } from 'lucide-react';
 import Link from 'next/link';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useState, useEffect } from 'react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { DashboardHeader } from '@/components/DashboardHeader';
 import { providerService, jobService, DashboardMetrics, ProfileData, subscriptionService, SubscriptionStatus } from '@/services/api.service';
 
 function cn(...inputs: ClassValue[]) {
@@ -95,49 +97,43 @@ export default function RefinedDashboardPage() {
         try {
             if (!isPolling) setIsLoading(true);
 
-            const [metricsRes, profileRes, pendingJobsRes] = await Promise.allSettled([
-                providerService.getDashboardMetrics(),
-                providerService.getProfile(),
-                jobService.list({ status: 'PENDING' })
-            ]);
-
-            let metricsData = null;
-            if (metricsRes.status === 'fulfilled' && metricsRes.value) {
-                metricsData = metricsRes.value.data || metricsRes.value;
-            }
-
-            let rawPendingJobs = [];
-            if (pendingJobsRes.status === 'fulfilled' && pendingJobsRes.value) {
-                const pendVal = pendingJobsRes.value;
-                rawPendingJobs = Array.isArray(pendVal.data) ? pendVal.data : (pendVal.data?.results || pendVal.results || (Array.isArray(pendVal) ? pendVal : []));
-            }
-
-            setMetrics(prev => ({
-                ...(metricsData || prev || {
-                    today_jobs: 0,
-                    total_revenue_today: 0,
-                    active_technicians: 0,
-                    pending_requests: 0,
-                    avg_rating: 0,
-                    total_jobs_this_month: 0,
-                    subscription_status: 'UNKNOWN',
-                    subscription_days_remaining: 0
-                }),
-                pending_requests: rawPendingJobs.length
-            }));
-
-            if (profileRes.status === 'fulfilled' && profileRes.value) {
-                const profileData = profileRes.value.data || profileRes.value;
-                setProfile(profileData);
-                if (!isPolling) setIsOnline(profileData.is_online);
-            }
-
-            // Fetch subscription status in the background to avoid blocking
-            subscriptionService.getStatus().then((subStatusRes) => {
-                if (subStatusRes) {
-                    setSubscriptionStatus(subStatusRes.data || subStatusRes);
+            // Read profile from cache if available to optimize performance
+            const cachedUser = localStorage.getItem('userProfile');
+            if (cachedUser) {
+                try {
+                    const parsed = JSON.parse(cachedUser);
+                    const profData = parsed.provider_profile || parsed;
+                    setProfile({ ...profData, phone_number: parsed.phone_number });
+                    if (!isPolling) setIsOnline(profData.is_online);
+                } catch (e) {
+                    console.error("Failed to parse cached user in dashboard:", e);
                 }
-            }).catch(err => console.error("Background subscription fetch failed:", err));
+            }
+
+            const metricsRes = await providerService.getDashboardMetrics().catch(() => null);
+
+            if (!cachedUser) {
+                const profileRes = await providerService.getProfile().catch(() => null);
+                if (profileRes && (profileRes.status === 'success' || profileRes.success)) {
+                    setProfile(profileRes.data || profileRes);
+                    if (!isPolling) setIsOnline(profileRes.data?.is_online || false);
+                }
+            }
+
+            if (metricsRes && (metricsRes.status === 'success' || metricsRes.success || metricsRes.data)) {
+                const metricsData = metricsRes.data || metricsRes;
+                console.log("Dashboard Metrics Response:", metricsData); // Log the dashboard matrix response
+                setMetrics(metricsData);
+
+                // If subscription data is in metrics, update that too
+                if (metricsData.subscription_status) {
+                    setSubscriptionStatus({
+                        status: metricsData.subscription_status,
+                        days_remaining: metricsData.subscription_days_remaining,
+                        expires_on: ''
+                    });
+                }
+            }
         } catch (error) {
             console.error("Failed to fetch dashboard data:", error);
         } finally {
@@ -187,42 +183,42 @@ export default function RefinedDashboardPage() {
     const statsConfig = [
         {
             label: t('active_jobs'),
-            value: metrics ? metrics.today_jobs.toString() : '0',
+            value: (metrics?.today_jobs ?? 0).toString(),
             icon: Car,
             trend: null,
             href: '/provider/queue'
         },
         {
             label: t('pending_requests'),
-            value: metrics ? metrics.pending_requests.toString() : '0',
+            value: (metrics?.pending_requests ?? 0).toString(),
             icon: Bell,
             trend: null,
             href: '/provider/queue'
         },
         {
             label: t('monthly_jobs'),
-            value: metrics ? metrics.total_jobs_this_month.toString() : '0',
+            value: (metrics?.total_jobs_this_month ?? 0).toString(),
             icon: TrendingUp,
             trend: null,
             href: '/provider/history'
         },
         {
             label: t('total_revenue') + ' (ETB)',
-            value: metrics ? metrics.total_revenue_today.toLocaleString() : '0.00',
+            value: ((metrics?.total_revenue_today) || (metrics?.revenue_data?.reduce((acc, curr) => acc + (curr.amount || curr.total || 0), 0)) || 0).toLocaleString(),
             icon: Wallet,
             trend: null,
             href: '/provider/revenue'
         },
         {
             label: t('technicians'),
-            value: metrics ? metrics.active_technicians.toString().padStart(2, '0') : '00',
+            value: (metrics?.active_technicians ?? 0).toString().padStart(2, '0'),
             icon: Users,
             trend: null,
             href: '/provider/technicians'
         },
         {
             label: t('avg_rating'),
-            value: metrics ? metrics.avg_rating.toFixed(1) : '0.0',
+            value: (metrics?.avg_rating ?? 0).toFixed(1),
             icon: Clock,
             trend: null,
             href: '/provider/reviews'
@@ -257,15 +253,16 @@ export default function RefinedDashboardPage() {
 
         if (analysisMetric === 'categories') {
             // Pie Chart for Categories
-            const total = categoryAnalytics.reduce((acc, curr) => acc + curr.count, 0);
+            const activeCategoryData = metrics?.category_data?.length ? metrics.category_data : categoryAnalytics;
+            const total = activeCategoryData.reduce((acc, curr) => acc + (curr.count || 0), 0);
             let currentAngle = 0;
 
             return (
                 <div className="flex items-center gap-12 w-full h-full p-4 animate-in fade-in duration-700">
                     <div className="relative w-48 h-48">
                         <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                            {categoryAnalytics.map((cat, i) => {
-                                const angle = (cat.count / total) * 360;
+                            {activeCategoryData.map((cat, i) => {
+                                const angle = ((cat.count || 0) / total) * 360;
                                 const x1 = 50 + 40 * Math.cos((currentAngle * Math.PI) / 180);
                                 const y1 = 50 + 40 * Math.sin((currentAngle * Math.PI) / 180);
                                 currentAngle += angle;
@@ -294,7 +291,7 @@ export default function RefinedDashboardPage() {
                         </div>
                     </div>
                     <div className="flex-1 space-y-3">
-                        {categoryAnalytics.map(cat => (
+                        {activeCategoryData.map((cat: any) => (
                             <div key={cat.name} className="flex items-center justify-between group">
                                 <div className="flex items-center gap-3">
                                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }}></div>
@@ -323,8 +320,8 @@ export default function RefinedDashboardPage() {
                 ];
                 maxValue = Math.max(...data.map(d => d.value));
             } else {
-                data = analysisMetric === 'technicians' ? technicianAnalytics : revenueData;
-                maxValue = Math.max(...data.map(d => 'jobs' in d ? d.jobs : 'amount' in d ? d.amount : 0));
+                data = analysisMetric === 'technicians' ? (metrics?.technician_data?.length ? metrics.technician_data : technicianAnalytics) : (metrics?.revenue_data?.length ? metrics.revenue_data : revenueData);
+                maxValue = Math.max(...data.map((d: any) => 'jobs' in d ? d.jobs : 'amount' in d ? d.amount : 'total' in d ? d.total : 0));
             }
 
             return (
@@ -357,10 +354,13 @@ export default function RefinedDashboardPage() {
         }
 
         // Default: Line Chart (for Revenue)
-        const maxValue = Math.max(...revenueData.map(d => d.amount));
-        const points = revenueData.map((d, i) => {
+        const activeRevenueData = metrics?.revenue_data?.length ? metrics.revenue_data : revenueData;
+        const maxVal = Math.max(...activeRevenueData.map((d: any) => d.amount || d.total || 0));
+        const maxValue = maxVal > 0 ? maxVal : 1;
+        const points = activeRevenueData.map((d: any, i: number) => {
+            const val = d.amount || d.total || 0;
             const x = 50 + (i * 100);
-            const y = 250 - (d.amount / maxValue) * 200;
+            const y = 250 - (val / maxValue) * 200;
             return `${x} ${y}`;
         }).join(' L ');
 
@@ -397,15 +397,16 @@ export default function RefinedDashboardPage() {
                     />
 
                     {/* Points */}
-                    {revenueData.map((d, i) => {
+                    {activeRevenueData.map((d: any, i: number) => {
+                        const val = d.amount || d.total || 0;
                         const x = 50 + (i * 100);
-                        const y = 250 - (d.amount / maxValue) * 200;
+                        const y = 250 - (val / maxValue) * 200;
                         return (
                             <g key={i} className="group/dot cursor-pointer">
                                 <circle cx={x} cy={y} r="6" fill="#F97316" stroke="white" strokeWidth="3" className="transition-all duration-300 group-hover/dot:r-8" />
                                 <foreignObject x={x - 40} y={y - 45} width="80" height="40" className="opacity-0 group-hover/dot:opacity-100 transition-opacity pointer-events-none">
                                     <div className="bg-gray-900 text-white text-[8px] font-black px-2 py-1 rounded text-center whitespace-nowrap shadow-xl">
-                                        {d.amount.toLocaleString()} ETB
+                                        {val.toLocaleString()} ETB
                                     </div>
                                 </foreignObject>
                             </g>
@@ -415,8 +416,8 @@ export default function RefinedDashboardPage() {
 
                 {/* X Axis Labels */}
                 <div className="absolute bottom-[-10px] w-full flex justify-between px-6">
-                    {revenueData.map((d) => (
-                        <span key={d.day} className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{d.day}</span>
+                    {activeRevenueData.map((d: any, i: number) => (
+                        <span key={i} className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{d.day || d.date}</span>
                     ))}
                 </div>
             </div>
@@ -424,196 +425,179 @@ export default function RefinedDashboardPage() {
     };
 
     return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-1000 pb-20">
-            {/* Header Area */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                <div>
-                    <h1 className="text-xl font-black text-[#171717] dark:text-white transition-colors">{t('dashboard')}</h1>
-                    <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-1">
-                        {t('welcome_back')}, {profile?.business_name || 'Partner'}
-                    </p>
-                </div>
+        <div className="flex flex-col min-h-screen">
+            <DashboardHeader
+                title={t('dashboard')}
+                subtitle={`${t('welcome_back')}, ${profile?.business_name || 'Partner'} • Coverage Radius: ${profile?.coverage_radius_km || '10.00'} km`}
+            />
 
-                <div className="flex items-center gap-6">
-                    <div className="flex items-center gap-3 bg-white dark:bg-white/5 px-4 py-2 rounded-2xl border border-gray-100 dark:border-white/5 shadow-sm transition-colors">
-                        <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">{t('online_for_requests')}</span>
-                        <button
-                            onClick={handleToggleOnline}
-                            disabled={isUpdatingStatus}
-                            className={cn(
-                                "w-10 h-5 rounded-full relative transition-colors duration-300",
-                                isOnline ? "bg-green-500" : "bg-gray-200 dark:bg-white/10",
-                                isUpdatingStatus && "opacity-50"
-                            )}
-                        >
+            <div className="p-8 lg:p-12 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-1000 pb-20">
+                {/* Subscription Status Bar */}
+                {subscriptionStatus && (
+                    <div className={cn(
+                        "bg-white/70 dark:bg-white/5 backdrop-blur-md px-8 py-4 rounded-[24px] border border-white/40 dark:border-white/5 flex items-center justify-between group",
+                        subscriptionStatus.days_remaining < 7 ? "border-red-200 dark:border-red-900/30" : "border-white/40"
+                    )}>
+                        <div className="flex items-center gap-4">
                             <div className={cn(
-                                "absolute top-1 w-3 h-3 bg-white rounded-full shadow-sm transition-transform duration-300",
-                                isOnline ? "translate-x-6" : "translate-x-1"
-                            )}></div>
-                        </button>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                        <div className={cn(
-                            "px-3 py-1.5 rounded-xl border transition-colors",
-                            (subscriptionStatus?.status === 'ACTIVE' || metrics?.subscription_status === 'ACTIVE')
-                                ? "bg-green-50 dark:bg-green-500/10 border-green-100 dark:border-green-500/20"
-                                : "bg-orange-50 dark:bg-orange-500/10 border-orange-100 dark:border-orange-500/20"
-                        )}>
-                            <span className={cn(
-                                "text-[9px] font-black uppercase tracking-widest",
-                                (subscriptionStatus?.status === 'ACTIVE' || metrics?.subscription_status === 'ACTIVE') ? "text-green-600 dark:text-green-400" : "text-orange-600 dark:text-orange-400"
+                                "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
+                                subscriptionStatus.status === 'ACTIVE'
+                                    ? "bg-green-100 text-green-600 dark:bg-green-900/20 dark:text-green-400"
+                                    : "bg-red-100 text-red-600 dark:bg-red-900/20 dark:text-red-400"
                             )}>
-                                {subscriptionStatus ? (
-                                    `${subscriptionStatus.status === 'ACTIVE' ? 'Subscription Active' : subscriptionStatus.status}: ${subscriptionStatus.days_remaining} Days Remaining`
-                                ) : (
-                                    metrics ? `${metrics.subscription_status === 'ACTIVE' ? 'Subscription Active' : metrics.subscription_status}: ${metrics.subscription_days_remaining} Days Remaining` : 'Loading...'
-                                )}
-                            </span>
-                        </div>
-                        <button
-                            onClick={() => window.dispatchEvent(new CustomEvent('open-notifications'))}
-                            className="p-2 text-gray-400 hover:text-gray-900 transition-colors relative"
-                        >
-                            <Bell size={18} />
-                            <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 border-2 border-white rounded-full"></div>
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {isLoading ? (
-                    Array(6).fill(0).map((_, i) => (
-                        <div key={i} className="bg-white/70 dark:bg-white/5 backdrop-blur-md p-6 rounded-[32px] border border-white/40 dark:border-white/5 shadow-sm space-y-4 animate-pulse">
-                            <div className="w-12 h-12 bg-gray-100 dark:bg-white/10 rounded-2xl"></div>
-                            <div className="space-y-2">
-                                <div className="h-2 w-16 bg-gray-100 dark:bg-white/10 rounded"></div>
-                                <div className="h-6 w-24 bg-gray-100 dark:bg-white/10 rounded"></div>
+                                <ShieldCheck size={20} />
                             </div>
-                        </div>
-                    ))
-                ) : (
-                    statsConfig.map((stat) => (
-                        <Link
-                            key={stat.label}
-                            href={stat.href}
-                            className="bg-white/70 dark:bg-white/5 backdrop-blur-md p-6 rounded-[32px] border border-white/40 dark:border-white/5 shadow-sm space-y-4 hover:shadow-2xl hover:shadow-primary/10 transition-all duration-500 hover:-translate-y-2 cursor-pointer group relative overflow-hidden"
-                        >
-                            {/* Subtle background glow */}
-                            <div className="absolute -right-6 -top-6 w-24 h-24 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-colors"></div>
-
-                            <div className="w-12 h-12 bg-gray-50/50 dark:bg-white/5 rounded-2xl flex items-center justify-center text-primary dark:text-orange-400 group-hover:bg-primary group-hover:text-white dark:group-hover:bg-accent dark:group-hover:text-white transition-all duration-500 group-hover:rotate-[10deg] shadow-inner border border-white dark:border-white/10">
-                                <stat.icon size={22} className="group-hover:scale-110 transition-transform" />
-                            </div>
-                            <div className="relative z-10">
-                                <p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest leading-none mb-1.5">{stat.label}</p>
-                                <p className="text-2xl font-black text-gray-900 dark:text-white tracking-tight group-hover:text-primary dark:group-hover:text-accent transition-colors">{stat.value}</p>
-                            </div>
-                        </Link>
-                    ))
-                )}
-            </div>
-
-            {/* Main Content Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Revenue Chart Card */}
-                <div className="lg:col-span-2 bg-white dark:bg-white/5 rounded-[32px] border border-gray-100 dark:border-white/5 shadow-sm p-8 flex flex-col transition-all duration-500 relative group/card">
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
-                        <div className="space-y-1">
-                            <div className="flex items-center gap-3">
-                                <h3 className="text-sm font-black text-[#171717] dark:text-white uppercase tracking-tight">
-                                    {analysisMetric === 'performance' ? 'Overall Performance' : analysisMetric === 'revenue' ? t('revenue') : analysisMetric === 'technicians' ? 'Technician Performance' : 'Service Categories'}
-                                </h3>
-                                {(analysisMetric === 'revenue' || analysisMetric === 'technicians' || analysisMetric === 'performance') && (
-                                    <div className="flex bg-gray-50 dark:bg-white/5 p-1 rounded-lg border border-gray-100 dark:border-white/10">
-                                        <button
-                                            onClick={() => setChartType('line')}
-                                            className={cn(
-                                                "p-1.5 rounded-md transition-all",
-                                                chartType === 'line' ? "bg-white dark:bg-white shadow-sm text-primary" : "text-gray-400 hover:text-gray-600"
-                                            )}
-                                        >
-                                            <TrendingUp size={12} />
-                                        </button>
-                                        <button
-                                            onClick={() => setChartType('bar')}
-                                            className={cn(
-                                                "p-1.5 rounded-md transition-all ml-1",
-                                                chartType === 'bar' ? "bg-white dark:bg-white shadow-sm text-primary" : "text-gray-400 hover:text-gray-600"
-                                            )}
-                                        >
-                                            <BarIcon size={12} />
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Interactive Analysis Mode</p>
-                        </div>
-
-                        <div className="flex flex-wrap gap-2">
-                            <div className="relative group/dropdown">
-                                <button className="flex items-center gap-2 px-4 py-2 bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-gray-100 dark:border-white/10">
-                                    Metric: <span className="text-primary dark:text-accent">
-                                        {analysisMetric === 'revenue' ? 'Revenue' : analysisMetric === 'technicians' ? 'Heros' : analysisMetric === 'categories' ? 'Services' : 'Performance'}
+                            <div>
+                                <p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">{t('subscription_status')}</p>
+                                <p className="text-sm font-black text-gray-900 dark:text-white uppercase">
+                                    {subscriptionStatus.status} <span className="mx-2 opacity-20">•</span>
+                                    <span className={cn(
+                                        subscriptionStatus.days_remaining < 7 ? "text-red-500" : "text-primary dark:text-accent"
+                                    )}>
+                                        {subscriptionStatus.days_remaining} {t('days_left')}
                                     </span>
-                                    <ChevronDown size={14} className="text-gray-400 group-hover/dropdown:rotate-180 transition-transform" />
-                                </button>
-                                <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-[#151515] border border-gray-100 dark:border-white/10 rounded-2xl shadow-2xl opacity-0 scale-95 pointer-events-none group-hover/dropdown:opacity-100 group-hover/dropdown:scale-100 group-hover/dropdown:pointer-events-auto transition-all z-[60] p-2">
-                                    <button onClick={() => setAnalysisMetric('revenue')} className="w-full text-left px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-primary hover:text-white transition-all">Revenue Growth</button>
-                                    <button onClick={() => setAnalysisMetric('performance')} className="w-full text-left px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-primary hover:text-white transition-all mt-1">Overall Performance</button>
-                                    <button onClick={() => setAnalysisMetric('technicians')} className="w-full text-left px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-primary hover:text-white transition-all mt-1">Hero Efficiency</button>
-                                    <button onClick={() => setAnalysisMetric('categories')} className="w-full text-left px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-primary hover:text-white transition-all mt-1">Service Mix</button>
+                                </p>
+                            </div>
+                        </div>
+                        <Link href="/provider/subscription" className="px-6 py-2.5 bg-gray-900 dark:bg-accent text-white text-[9px] font-black uppercase tracking-widest rounded-xl hover:bg-black dark:hover:bg-accent/80 transition-all active:scale-95 shadow-xl shadow-black/10 dark:shadow-none">
+                            {t('renew_now')}
+                        </Link>
+                    </div>
+                )}
+
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {isLoading ? (
+                        Array(6).fill(0).map((_, i) => (
+                            <div key={i} className="bg-white/70 dark:bg-white/5 backdrop-blur-md p-6 rounded-[32px] border border-white/40 dark:border-white/5 shadow-sm space-y-4 animate-pulse">
+                                <div className="w-12 h-12 bg-gray-100 dark:bg-white/10 rounded-2xl"></div>
+                                <div className="space-y-2">
+                                    <div className="h-2 w-16 bg-gray-100 dark:bg-white/10 rounded"></div>
+                                    <div className="h-6 w-24 bg-gray-100 dark:bg-white/10 rounded"></div>
                                 </div>
                             </div>
+                        ))
+                    ) : (
+                        statsConfig.map((stat) => (
+                            <Link
+                                key={stat.label}
+                                href={stat.href}
+                                className="bg-white/70 dark:bg-white/5 backdrop-blur-md p-6 rounded-[32px] border border-white/40 dark:border-white/5 shadow-sm space-y-4 hover:shadow-2xl hover:shadow-primary/10 transition-all duration-500 hover:-translate-y-2 cursor-pointer group relative overflow-hidden"
+                            >
+                                {/* Subtle background glow */}
+                                <div className="absolute -right-6 -top-6 w-24 h-24 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-colors"></div>
 
-                            {['Week', 'Month', 'Year'].map((p) => (
-                                <button key={p} className={cn(
-                                    "px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
-                                    p === 'Week' ? "bg-primary text-white shadow-lg shadow-blue-900/20" : "bg-gray-50 dark:bg-white/5 text-gray-400 hover:text-gray-600"
-                                )}>{p}</button>
+                                <div className="w-12 h-12 bg-gray-50/50 dark:bg-white/5 rounded-2xl flex items-center justify-center text-primary dark:text-orange-400 group-hover:bg-primary group-hover:text-white dark:group-hover:bg-accent dark:group-hover:text-white transition-all duration-500 group-hover:rotate-[10deg] shadow-inner border border-white dark:border-white/10">
+                                    <stat.icon size={22} className="group-hover:scale-110 transition-transform" />
+                                </div>
+                                <div className="relative z-10">
+                                    <p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest leading-none mb-1.5">{stat.label}</p>
+                                    <p className="text-2xl font-black text-gray-900 dark:text-white tracking-tight group-hover:text-primary dark:group-hover:text-accent transition-colors">{stat.value}</p>
+                                </div>
+                            </Link>
+                        ))
+                    )}
+                </div>
+
+                {/* Main Content Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Revenue Chart Card */}
+                    <div className="lg:col-span-2 bg-white dark:bg-white/5 rounded-[32px] border border-gray-100 dark:border-white/5 shadow-sm p-8 flex flex-col transition-all duration-500 relative group/card">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
+                            <div className="space-y-1">
+                                <div className="flex items-center gap-3">
+                                    <h3 className="text-sm font-black text-[#171717] dark:text-white uppercase tracking-tight">
+                                        {analysisMetric === 'performance' ? 'Overall Performance' : analysisMetric === 'revenue' ? t('revenue') : analysisMetric === 'technicians' ? 'Technician Performance' : 'Service Categories'}
+                                    </h3>
+                                    {(analysisMetric === 'revenue' || analysisMetric === 'technicians' || analysisMetric === 'performance') && (
+                                        <div className="flex bg-gray-50 dark:bg-white/5 p-1 rounded-lg border border-gray-100 dark:border-white/10">
+                                            <button
+                                                onClick={() => setChartType('line')}
+                                                className={cn(
+                                                    "p-1.5 rounded-md transition-all",
+                                                    chartType === 'line' ? "bg-white dark:bg-white shadow-sm text-primary" : "text-gray-400 hover:text-gray-600"
+                                                )}
+                                            >
+                                                <TrendingUp size={12} />
+                                            </button>
+                                            <button
+                                                onClick={() => setChartType('bar')}
+                                                className={cn(
+                                                    "p-1.5 rounded-md transition-all ml-1",
+                                                    chartType === 'bar' ? "bg-white dark:bg-white shadow-sm text-primary" : "text-gray-400 hover:text-gray-600"
+                                                )}
+                                            >
+                                                <BarIcon size={12} />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Interactive Analysis Mode</p>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                                <div className="relative group/dropdown">
+                                    <button className="flex items-center gap-2 px-4 py-2 bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-gray-100 dark:border-white/10">
+                                        Metric: <span className="text-primary dark:text-accent">
+                                            {analysisMetric === 'revenue' ? 'Revenue' : analysisMetric === 'technicians' ? 'Heros' : analysisMetric === 'categories' ? 'Services' : 'Performance'}
+                                        </span>
+                                        <ChevronDown size={14} className="text-gray-400 group-hover/dropdown:rotate-180 transition-transform" />
+                                    </button>
+                                    <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-[#151515] border border-gray-100 dark:border-white/10 rounded-2xl shadow-2xl opacity-0 scale-95 pointer-events-none group-hover/dropdown:opacity-100 group-hover/dropdown:scale-100 group-hover/dropdown:pointer-events-auto transition-all z-[60] p-2">
+                                        <button onClick={() => setAnalysisMetric('revenue')} className="w-full text-left px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-primary hover:text-white transition-all">Revenue Growth</button>
+                                        <button onClick={() => setAnalysisMetric('performance')} className="w-full text-left px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-primary hover:text-white transition-all mt-1">Overall Performance</button>
+                                        <button onClick={() => setAnalysisMetric('technicians')} className="w-full text-left px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-primary hover:text-white transition-all mt-1">Hero Efficiency</button>
+                                        <button onClick={() => setAnalysisMetric('categories')} className="w-full text-left px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-primary hover:text-white transition-all mt-1">Service Mix</button>
+                                    </div>
+                                </div>
+
+                                {['Week', 'Month', 'Year'].map((p) => (
+                                    <button key={p} className={cn(
+                                        "px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                                        p === 'Week' ? "bg-primary text-white shadow-lg shadow-blue-900/20" : "bg-gray-50 dark:bg-white/5 text-gray-400 hover:text-gray-600"
+                                    )}>{p}</button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="flex-1 relative min-h-[300px] flex items-center justify-center">
+                            {renderChart()}
+                        </div>
+                    </div>
+
+                    {/* Recent Activity Card */}
+                    <div className="bg-white dark:bg-white/5 rounded-[32px] border border-gray-100 dark:border-white/5 shadow-sm p-8 flex flex-col hover:shadow-lg dark:hover:shadow-primary/5 transition-all duration-500">
+                        <div className="flex justify-between items-center mb-8">
+                            <div>
+                                <h3 className="text-sm font-black text-[#171717] dark:text-white">{t('recent_activity')}</h3>
+                                <p className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-0.5">Live monitoring</p>
+                            </div>
+                            <Link href="/provider/history" className="bg-primary/5 dark:bg-white/10 px-4 py-2 rounded-xl text-[9px] font-black text-primary dark:text-white hover:bg-primary hover:text-white dark:hover:bg-accent transition-all uppercase tracking-widest">{t('view_all')}</Link>
+                        </div>
+
+                        <div className="flex-1 space-y-7">
+                            {(metrics?.recent_activity?.length ? metrics.recent_activity : activity).map((item: any, i: number) => (
+                                <div key={i} className="flex gap-5 items-start group cursor-pointer relative">
+                                    <div className={cn(
+                                        "w-3 h-3 rounded-full mt-1.5 shrink-0 transition-all duration-500 border-2 border-white shadow-sm ring-2 ring-transparent group-hover:ring-primary/20",
+                                        item.color
+                                    )}></div>
+                                    {i !== activity.length - 1 && (
+                                        <div className="absolute left-[5px] top-6 bottom-[-20px] w-0.5 bg-gray-50 group-hover:bg-gray-100 transition-colors"></div>
+                                    )}
+                                    <div className="transition-all duration-300 group-hover:translate-x-1.5">
+                                        <p className="text-[13px] font-black text-gray-900 dark:text-white leading-none mb-1.5 group-hover:text-primary dark:group-hover:text-accent transition-colors">{item.label}</p>
+                                        <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">{item.details}</p>
+                                    </div>
+                                </div>
                             ))}
                         </div>
-                    </div>
 
-                    <div className="flex-1 relative min-h-[300px] flex items-center justify-center">
-                        {renderChart()}
+                        <Link href="/provider/history" className="mt-10 flex items-center justify-center gap-2 group text-[10px] font-black text-primary dark:text-white uppercase tracking-[0.2em] bg-gray-50/50 dark:bg-white/5 hover:bg-white dark:hover:bg-white/10 py-4 rounded-2xl border border-gray-100 dark:border-white/5 hover:border-primary/20 dark:hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5 transition-all">
+                            {t('job_history')}
+                            <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                        </Link>
                     </div>
-                </div>
-
-                {/* Recent Activity Card */}
-                <div className="bg-white dark:bg-white/5 rounded-[32px] border border-gray-100 dark:border-white/5 shadow-sm p-8 flex flex-col hover:shadow-lg dark:hover:shadow-primary/5 transition-all duration-500">
-                    <div className="flex justify-between items-center mb-8">
-                        <div>
-                            <h3 className="text-sm font-black text-[#171717] dark:text-white">{t('recent_activity')}</h3>
-                            <p className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-0.5">Live monitoring</p>
-                        </div>
-                        <Link href="/provider/history" className="bg-primary/5 dark:bg-white/10 px-4 py-2 rounded-xl text-[9px] font-black text-primary dark:text-white hover:bg-primary hover:text-white dark:hover:bg-accent transition-all uppercase tracking-widest">{t('view_all')}</Link>
-                    </div>
-
-                    <div className="flex-1 space-y-7">
-                        {activity.map((item, i) => (
-                            <div key={i} className="flex gap-5 items-start group cursor-pointer relative">
-                                <div className={cn(
-                                    "w-3 h-3 rounded-full mt-1.5 shrink-0 transition-all duration-500 border-2 border-white shadow-sm ring-2 ring-transparent group-hover:ring-primary/20",
-                                    item.color
-                                )}></div>
-                                {i !== activity.length - 1 && (
-                                    <div className="absolute left-[5px] top-6 bottom-[-20px] w-0.5 bg-gray-50 group-hover:bg-gray-100 transition-colors"></div>
-                                )}
-                                <div className="transition-all duration-300 group-hover:translate-x-1.5">
-                                    <p className="text-[13px] font-black text-gray-900 dark:text-white leading-none mb-1.5 group-hover:text-primary dark:group-hover:text-accent transition-colors">{item.label}</p>
-                                    <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">{item.details}</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    <Link href="/provider/history" className="mt-10 flex items-center justify-center gap-2 group text-[10px] font-black text-primary dark:text-white uppercase tracking-[0.2em] bg-gray-50/50 dark:bg-white/5 hover:bg-white dark:hover:bg-white/10 py-4 rounded-2xl border border-gray-100 dark:border-white/5 hover:border-primary/20 dark:hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5 transition-all">
-                        {t('job_history')}
-                        <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
-                    </Link>
                 </div>
             </div>
         </div>

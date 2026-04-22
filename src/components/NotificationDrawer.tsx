@@ -20,7 +20,14 @@ export function NotificationDrawer() {
     const fetchNotifications = useCallback(async () => {
         try {
             const response = await notificationService.list();
-            setNotifications(response.data || response || []);
+
+            // Robust data extraction
+            const rawData = response.data || response;
+            const notificationArray = Array.isArray(rawData)
+                ? rawData
+                : (rawData.results || (Array.isArray(rawData.data) ? rawData.data : []));
+
+            setNotifications(notificationArray);
         } catch (error) {
             console.error('Failed to fetch notifications in drawer:', error);
         }

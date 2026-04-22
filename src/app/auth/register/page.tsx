@@ -11,6 +11,7 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { authService, onboardingService } from '@/services/api.service';
 import { uploadService } from '@/services/upload.service';
+import { useLanguage } from '@/hooks/useLanguage';
 
 const InteractiveMap = dynamic(() => import('@/components/InteractiveMap'), { ssr: false });
 
@@ -19,10 +20,10 @@ function cn(...inputs: ClassValue[]) {
 }
 
 const steps = [
-    { id: 1, name: 'Profile', icon: User },
-    { id: 2, name: 'Business', icon: Briefcase },
-    { id: 3, name: 'Location', icon: MapPin },
-    { id: 4, name: 'Verify', icon: ShieldCheck },
+    { id: 1, name: 'step_profile', icon: User },
+    { id: 2, name: 'step_business', icon: Briefcase },
+    { id: 3, name: 'step_location', icon: MapPin },
+    { id: 4, name: 'step_verify', icon: ShieldCheck },
 ];
 
 export default function RegisterProviderPage() {
@@ -38,6 +39,7 @@ export default function RegisterProviderPage() {
 }
 
 function RegisterContent() {
+    const { t } = useLanguage();
     const searchParams = useSearchParams();
     const stepParam = searchParams.get('step');
     const [currentStep, setCurrentStep] = useState(stepParam ? Math.min(Math.max(parseInt(stepParam), 1), 4) : 1);
@@ -215,59 +217,59 @@ function RegisterContent() {
         switch (currentStep) {
             case 1:
                 return (
-                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <div className="space-y-5">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                <div className="space-y-2">
-                                    <label className="text-[11px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest ml-1">Full Name</label>
+                    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                        <div className="space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2.5">
+                                    <label className="text-[10px] font-black text-white/50 dark:text-gray-400 uppercase tracking-[0.2em] ml-1">{t('full_name_label')}</label>
                                     <input
                                         type="text"
                                         value={fullName}
                                         onChange={(e) => setFullName(e.target.value)}
-                                        placeholder="Abebe Bikila"
-                                        className="w-full px-5 py-3.5 rounded-[16px] border border-gray-100 dark:border-white/10 bg-gray-50 dark:bg-white/[0.02] dark:text-white focus:bg-white dark:focus:bg-white/5 focus:border-primary dark:focus:border-accent focus:ring-4 focus:ring-primary/5 transition-all outline-none font-medium text-sm placeholder:text-gray-300 dark:placeholder:text-gray-700"
+                                        placeholder={t('full_name_placeholder')}
+                                        className="w-full px-5 py-4 rounded-[20px] border border-white/20 dark:border-white/10 bg-white/20 dark:bg-white/[0.03] text-gray-900 dark:text-white focus:bg-white dark:focus:bg-white/[0.1] focus:border-primary dark:focus:border-accent shadow-sm transition-all outline-none font-bold text-sm placeholder:text-gray-400 dark:placeholder:text-gray-600"
                                     />
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-[11px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest ml-1">Personal Email</label>
+                                <div className="space-y-2.5">
+                                    <label className="text-[10px] font-black text-white/50 dark:text-gray-400 uppercase tracking-[0.2em] ml-1">{t('email_label')}</label>
                                     <input
                                         type="email"
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
-                                        placeholder="abebe@example.com"
-                                        className="w-full px-5 py-3.5 rounded-[16px] border border-gray-100 dark:border-white/10 bg-gray-50 dark:bg-white/[0.02] dark:text-white focus:bg-white dark:focus:bg-white/5 focus:border-primary dark:focus:border-accent focus:ring-4 focus:ring-primary/5 transition-all outline-none font-medium text-sm placeholder:text-gray-300 dark:placeholder:text-gray-700"
+                                        placeholder={t('email_placeholder')}
+                                        className="w-full px-5 py-4 rounded-[20px] border border-white/20 dark:border-white/10 bg-white/20 dark:bg-white/[0.03] text-gray-900 dark:text-white focus:bg-white dark:focus:bg-white/[0.1] focus:border-primary dark:focus:border-accent shadow-sm transition-all outline-none font-bold text-sm placeholder:text-gray-400 dark:placeholder:text-gray-600"
                                     />
                                 </div>
                             </div>
-                            <div className="space-y-2">
-                                <label className="text-[11px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest ml-1">Phone Number</label>
+                            <div className="space-y-2.5">
+                                <label className="text-[10px] font-black text-white/50 dark:text-gray-400 uppercase tracking-[0.2em] ml-1">{t('phone_label')}</label>
                                 <input
                                     type="text"
                                     value={phoneNumber}
                                     onChange={(e) => setPhoneNumber(e.target.value)}
-                                    placeholder="+251922334455"
-                                    className="w-full px-5 py-3.5 rounded-[16px] border border-gray-100 dark:border-white/10 bg-gray-50 dark:bg-white/[0.02] dark:text-white focus:bg-white dark:focus:bg-white/5 focus:border-primary dark:focus:border-accent focus:ring-4 focus:ring-primary/5 transition-all outline-none font-medium text-sm placeholder:text-gray-300 dark:placeholder:text-gray-700"
+                                    placeholder={t('phone_placeholder')}
+                                    className="w-full px-5 py-4 rounded-[20px] border border-white/20 dark:border-white/10 bg-white/20 dark:bg-white/[0.03] text-gray-900 dark:text-white focus:bg-white dark:focus:bg-white/[0.1] focus:border-primary dark:focus:border-accent shadow-sm transition-all outline-none font-bold text-sm placeholder:text-gray-400 dark:placeholder:text-gray-600"
                                 />
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                <div className="space-y-2">
-                                    <label className="text-[11px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest ml-1">Create Password</label>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2.5">
+                                    <label className="text-[10px] font-black text-white/50 dark:text-gray-400 uppercase tracking-[0.2em] ml-1">{t('password_label')}</label>
                                     <input
                                         type="password"
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
                                         placeholder="••••••••"
-                                        className="w-full px-5 py-3.5 rounded-[16px] border border-gray-100 dark:border-white/10 bg-gray-50 dark:bg-white/[0.02] dark:text-white focus:bg-white dark:focus:bg-white/5 focus:border-primary dark:focus:border-accent focus:ring-4 focus:ring-primary/5 transition-all outline-none font-medium text-sm placeholder:text-gray-300 dark:placeholder:text-gray-700"
+                                        className="w-full px-5 py-4 rounded-[20px] border border-white/20 dark:border-white/10 bg-white/20 dark:bg-white/[0.03] text-gray-900 dark:text-white focus:bg-white dark:focus:bg-white/[0.1] focus:border-primary dark:focus:border-accent shadow-sm transition-all outline-none font-bold text-sm placeholder:text-gray-400 dark:placeholder:text-gray-600"
                                     />
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-[11px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest ml-1">Confirm Password</label>
+                                <div className="space-y-2.5">
+                                    <label className="text-[10px] font-black text-white/50 dark:text-gray-400 uppercase tracking-[0.2em] ml-1">{t('confirm_password_label')}</label>
                                     <input
                                         type="password"
                                         value={confirmPassword}
                                         onChange={(e) => setConfirmPassword(e.target.value)}
                                         placeholder="••••••••"
-                                        className="w-full px-5 py-3.5 rounded-[16px] border border-gray-100 dark:border-white/10 bg-gray-50 dark:bg-white/[0.02] dark:text-white focus:bg-white dark:focus:bg-white/5 focus:border-primary dark:focus:border-accent focus:ring-4 focus:ring-primary/5 transition-all outline-none font-medium text-sm placeholder:text-gray-300 dark:placeholder:text-gray-700"
+                                        className="w-full px-5 py-4 rounded-[20px] border border-white/20 dark:border-white/10 bg-white/20 dark:bg-white/[0.03] text-gray-900 dark:text-white focus:bg-white dark:focus:bg-white/[0.1] focus:border-primary dark:focus:border-accent shadow-sm transition-all outline-none font-bold text-sm placeholder:text-gray-400 dark:placeholder:text-gray-600"
                                     />
                                 </div>
                             </div>
@@ -276,53 +278,53 @@ function RegisterContent() {
                 );
             case 2:
                 return (
-                    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <section className="space-y-5">
-                            <h3 className="text-lg font-black text-gray-900 dark:text-white border-l-4 border-accent pl-4 tracking-tight">Business Details</h3>
-                            <div className="space-y-5">
-                                <div className="space-y-2">
-                                    <label className="text-[11px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest ml-1">Business Name</label>
+                    <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                        <section className="space-y-6">
+                            <h3 className="text-xl font-black text-gray-900 dark:text-white border-l-4 border-accent pl-4 tracking-tight">{t('business_details')}</h3>
+                            <div className="space-y-6">
+                                <div className="space-y-2.5">
+                                    <label className="text-[10px] font-black text-white/50 dark:text-gray-400 uppercase tracking-[0.2em] ml-1">{t('business_name_label')}</label>
                                     <input
                                         type="text"
                                         value={businessName}
                                         onChange={(e) => setBusinessName(e.target.value)}
-                                        placeholder="Abyssinia Motors"
-                                        className="w-full px-5 py-3.5 rounded-[16px] border border-gray-100 dark:border-white/10 bg-gray-50 dark:bg-white/5 dark:text-white focus:bg-white dark:focus:bg-white/5 focus:border-primary dark:focus:border-accent transition-all outline-none font-bold text-sm"
+                                        placeholder={t('business_name_placeholder')}
+                                        className="w-full px-5 py-4 rounded-[20px] border border-white/20 dark:border-white/10 bg-white/20 dark:bg-white/[0.05] text-gray-900 dark:text-white focus:bg-white dark:focus:bg-white/[0.1] focus:border-primary dark:focus:border-accent transition-all outline-none font-bold text-sm shadow-sm"
                                     />
                                 </div>
-                                <div className="space-y-2.5">
-                                    <label className="text-[11px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest ml-1">Service Category</label>
-                                    <div className="flex flex-wrap gap-2">
+                                <div className="space-y-3.5">
+                                    <label className="text-[10px] font-black text-white/50 dark:text-gray-400 uppercase tracking-[0.2em] ml-1">{t('service_category_label')}</label>
+                                    <div className="flex flex-wrap gap-3">
                                         {['Mechanical Repair', 'Towing', 'Tire Change', 'Fuel Delivery', 'Electrician'].map((cat) => (
                                             <button
                                                 key={cat}
                                                 type="button"
                                                 onClick={() => toggleCategory(cat)}
                                                 className={cn(
-                                                    "px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border shadow-sm",
+                                                    "px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border shadow-sm",
                                                     selectedCategories.includes(cat)
-                                                        ? "bg-primary text-white border-primary shadow-blue-900/20 scale-105"
-                                                        : "bg-white dark:bg-white/5 text-gray-500 dark:text-gray-400 border-gray-100 dark:border-white/10 hover:border-primary/40"
+                                                        ? "bg-primary text-white border-primary shadow-blue-900/40 scale-105"
+                                                        : "bg-white/10 dark:bg-white/5 text-white/60 dark:text-gray-400 border-white/20 dark:border-white/10 hover:border-primary/40 hover:bg-white/20"
                                                 )}
                                             >
-                                                {cat}
+                                                {t(cat.toLowerCase().replace(' ', '_')) || cat}
                                             </button>
                                         ))}
                                     </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-[11px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest ml-1">TIN Number</label>
+                                <div className="space-y-2.5">
+                                    <label className="text-[10px] font-black text-white/50 dark:text-gray-400 uppercase tracking-[0.2em] ml-1">{t('tin_number_label')}</label>
                                     <div className="relative group">
                                         <input
                                             type="text"
                                             value={tinNumber}
                                             onChange={(e) => setTinNumber(e.target.value)}
-                                            placeholder="0045623XXX"
-                                            className="w-full px-5 py-3.5 rounded-[16px] border border-gray-100 dark:border-white/10 bg-gray-50 dark:bg-white/[0.02] dark:text-white focus:bg-white dark:focus:bg-white/5 focus:border-primary dark:focus:border-accent transition-all outline-none font-bold text-sm"
+                                            placeholder={t('tin_number_placeholder')}
+                                            className="w-full px-5 py-4 rounded-[20px] border border-white/20 dark:border-white/10 bg-white/20 dark:bg-white/[0.02] text-gray-900 dark:text-white focus:bg-white dark:focus:bg-white/[0.1] focus:border-primary dark:focus:border-accent transition-all outline-none font-bold text-sm shadow-sm"
                                         />
                                         {tinNumber && (
-                                            <div className="absolute right-5 top-1/2 -translate-y-1/2 flex items-center gap-1 text-green-500 text-[8px] font-black uppercase tracking-tighter">
-                                                <Check size={12} /> Pending
+                                            <div className="absolute right-5 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-green-500 text-[9px] font-black uppercase tracking-tighter bg-green-500/10 px-2 py-1 rounded-full">
+                                                <Check size={14} /> {t('accepted')}
                                             </div>
                                         )}
                                     </div>
@@ -333,17 +335,17 @@ function RegisterContent() {
                 );
             case 3:
                 return (
-                    <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <div className="space-y-5">
+                    <div className="flex flex-col gap-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                        <div className="space-y-6">
                             <div className="flex justify-between items-center px-1">
-                                <h3 className="text-lg font-black text-gray-900 dark:text-white border-l-4 border-accent pl-3 tracking-tight transition-colors">Shop Location</h3>
-                                <div className="flex items-center gap-2 bg-green-50 dark:bg-green-500/10 px-3 py-1.5 rounded-full border border-green-100 dark:border-green-500/20 shadow-sm transition-colors">
-                                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
-                                    <span className="text-[8px] font-black text-green-700 dark:text-green-400 uppercase tracking-[0.2em]">GPS Active</span>
+                                <h3 className="text-xl font-black text-gray-900 dark:text-white border-l-4 border-accent pl-3 tracking-tight transition-colors">{t('shop_location')}</h3>
+                                <div className="flex items-center gap-2.5 bg-green-500/10 dark:bg-green-500/20 px-4 py-2 rounded-full border border-green-500/20 shadow-sm transition-colors">
+                                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
+                                    <span className="text-[9px] font-black text-green-600 dark:text-green-400 uppercase tracking-[0.2em]">{t('gps_tracking')}</span>
                                 </div>
                             </div>
 
-                            <div className="w-full h-[300px] bg-gray-100 dark:bg-white/5 rounded-[32px] relative overflow-hidden group border-4 border-white dark:border-white/5 shadow-xl transition-colors">
+                            <div className="w-full h-[320px] bg-white/10 dark:bg-white/5 rounded-[40px] relative overflow-hidden group border-4 border-white/40 dark:border-white/10 shadow-2xl transition-all">
                                 <InteractiveMap
                                     center={location}
                                     zoom={17}
@@ -351,44 +353,48 @@ function RegisterContent() {
                                         position: location,
                                         type: 'garage',
                                         draggable: true,
-                                        label: 'Your Garage',
+                                        label: t('step_location'),
                                         onDragEnd: (lat: number, lng: number) => setLocation([lat, lng])
                                     }]}
                                 />
                             </div>
                         </div>
 
-                        <div className="space-y-6 shrink-0 py-2">
-                            <div className="space-y-2">
-                                <label className="text-[11px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest ml-1 transition-colors">Search Landmark</label>
+                        <div className="space-y-8 shrink-0">
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black text-white/50 dark:text-gray-400 uppercase tracking-[0.2em] ml-1 transition-colors">{t('search_landmark')}</label>
                                 <div className="relative group">
-                                    <MapPin size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 dark:text-gray-700 group-focus-within:text-primary transition-colors" />
+                                    <MapPin size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-primary/40 dark:text-gray-600 group-focus-within:text-primary transition-colors" />
                                     <input
                                         type="text"
                                         value={landmark}
                                         onChange={(e) => setLandmark(e.target.value)}
-                                        placeholder="Bole, Addis Ababa"
-                                        className="w-full pl-11 pr-4 py-3.5 rounded-[16px] border border-gray-100 dark:border-white/10 bg-white dark:bg-white/10 dark:text-white focus:border-primary dark:focus:border-accent outline-none text-[12px] font-black shadow-sm focus:ring-4 focus:ring-primary/5 transition-all transition-colors"
+                                        placeholder={t('search_landmark_placeholder')}
+                                        className="w-full pl-14 pr-6 py-4.5 rounded-[22px] border border-white/20 dark:border-white/10 bg-white/20 dark:bg-white/10 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-white/[0.1] focus:border-primary dark:focus:border-accent outline-none text-[13px] font-bold shadow-sm focus:ring-8 focus:ring-primary/5 transition-all"
                                     />
                                 </div>
                             </div>
 
-                            <div className="p-5 bg-gray-900 dark:bg-black rounded-[24px] shadow-xl space-y-3 border border-white/5 transition-colors">
+                            <div className="p-6 bg-gray-900/90 dark:bg-black/80 backdrop-blur-md rounded-[32px] shadow-2xl space-y-4 border border-white/10 transition-all">
                                 <div className="flex justify-between items-center">
-                                    <span className="text-[7px] font-black text-gray-500 uppercase tracking-[0.3em]">Precision Link</span>
-                                    <div className="px-1.5 py-0.5 bg-green-500/10 text-green-500 text-[7px] font-black rounded uppercase">98%</div>
+                                    <span className="text-[8px] font-black text-white/30 uppercase tracking-[0.4em]">{t('spatial_accuracy')}</span>
+                                    <div className="px-2 py-0.5 bg-green-500/20 text-green-400 text-[8px] font-black rounded uppercase tracking-widest border border-green-500/20">98% Verified</div>
                                 </div>
-                                <div className="space-y-0.5">
-                                    <p className="text-[9px] font-medium text-gray-400 font-mono tracking-tight transition-colors">LAT: {location[0].toFixed(6)}</p>
-                                    <p className="text-[9px] font-medium text-gray-400 font-mono tracking-tight transition-colors">LNG: {location[1].toFixed(6)}</p>
+                                <div className="space-y-1 text-center py-1">
+                                    <p className="text-[11px] font-bold text-white/60 font-mono tracking-tight transition-colors flex items-center justify-center gap-2">
+                                        <span className="text-white/20">{t('lat_label')}</span> {location[0].toFixed(6)}
+                                    </p>
+                                    <p className="text-[11px] font-bold text-white/60 font-mono tracking-tight transition-colors flex items-center justify-center gap-2">
+                                        <span className="text-white/20">{t('lng_label')}</span> {location[1].toFixed(6)}
+                                    </p>
                                 </div>
                             </div>
 
-                            <div className="space-y-2">
-                                <label className="text-[9px] font-black text-gray-400 dark:text-gray-600 uppercase tracking-widest ml-1 transition-colors">Directions Note</label>
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black text-white/50 dark:text-gray-500 uppercase tracking-[0.2em] ml-1 transition-colors">{t('directions_note_label')}</label>
                                 <textarea
-                                    className="w-full px-4 py-3.5 rounded-[16px] border border-gray-100 dark:border-white/5 bg-white dark:bg-white/10 dark:text-white focus:ring-4 focus:ring-primary/5 transition-all outline-none text-[11px] h-24 resize-none font-medium placeholder:text-gray-300 dark:placeholder:text-gray-700"
-                                    placeholder="e.g. Behind Dembel City Center, Gate 2."
+                                    className="w-full px-6 py-4.5 rounded-[24px] border border-white/20 dark:border-white/10 bg-white/20 dark:bg-white/10 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-white/[0.1] focus:ring-8 focus:ring-primary/5 transition-all outline-none text-[12px] h-32 resize-none font-bold placeholder:text-gray-400 dark:placeholder:text-gray-600 shadow-sm"
+                                    placeholder={t('directions_note_placeholder')}
                                     value={directionsNote}
                                     onChange={(e) => setDirectionsNote(e.target.value)}
                                 />
@@ -398,16 +404,16 @@ function RegisterContent() {
                 );
             case 4:
                 return (
-                    <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="flex flex-col gap-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
                         <div className="space-y-6">
-                            <div className="space-y-2 text-center">
-                                <h3 className="text-xl font-black text-gray-900 dark:text-white tracking-tight transition-colors uppercase">Verify Business</h3>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 font-medium transition-colors mx-auto max-w-sm">Document upload for partner identity verification.</p>
+                            <div className="space-y-3 text-center">
+                                <h3 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight transition-colors uppercase">{t('verify_business_title')}</h3>
+                                <p className="text-sm text-white/50 dark:text-gray-400 font-medium transition-colors mx-auto max-w-sm">{t('verify_business_desc')}</p>
                             </div>
 
-                            <div className="grid md:grid-cols-2 gap-6">
-                                <div className="space-y-3">
-                                    <label className="text-[11px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest ml-1 transition-colors">Business License</label>
+                            <div className="grid md:grid-cols-2 gap-8">
+                                <div className="space-y-4">
+                                    <label className="text-[10px] font-black text-white/50 dark:text-gray-400 uppercase tracking-[0.2em] ml-1 transition-colors">{t('business_license_label')}</label>
                                     <input
                                         type="file"
                                         ref={licenseRef}
@@ -418,33 +424,33 @@ function RegisterContent() {
                                     <div
                                         onClick={() => licenseRef.current?.click()}
                                         className={cn(
-                                            "border-2 border-dashed rounded-[24px] p-6 flex flex-col items-center justify-center gap-3 transition-all cursor-pointer group shadow-inner",
-                                            businessLicense ? "border-green-200 dark:border-green-500/20 bg-green-50/20 dark:bg-green-500/5" : "border-gray-100 dark:border-white/10 bg-gray-50 dark:bg-white/[0.02] hover:bg-white dark:hover:bg-white/5 hover:border-primary/30"
+                                            "border-3 border-dashed rounded-[32px] p-8 flex flex-col items-center justify-center gap-4 transition-all cursor-pointer group shadow-inner",
+                                            businessLicense ? "border-green-500/40 bg-green-500/10" : "border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/[0.02] hover:bg-white/30 dark:hover:bg-white/5 hover:border-primary/40"
                                         )}
                                     >
                                         <div className={cn(
-                                            "w-12 h-12 rounded-2xl shadow-lg flex items-center justify-center transition-all duration-500 group-hover:scale-110",
-                                            (isUploadingLicense || businessLicenseUrl) ? "bg-green-500 text-white" : "bg-white dark:bg-white/10 text-primary dark:text-accent"
+                                            "w-16 h-16 rounded-[24px] shadow-2xl flex items-center justify-center transition-all duration-700 group-hover:scale-110 group-hover:rotate-6",
+                                            (isUploadingLicense || businessLicenseUrl) ? "bg-green-500 text-white" : "bg-white dark:bg-white/10 text-primary dark:text-accent border border-white/20"
                                         )}>
                                             {isUploadingLicense ? (
-                                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                                <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin" />
                                             ) : businessLicenseUrl ? (
-                                                <Check size={24} strokeWidth={3} />
+                                                <Check size={32} strokeWidth={3} />
                                             ) : (
-                                                <Upload size={24} />
+                                                <Upload size={32} />
                                             )}
                                         </div>
                                         <div className="text-center">
-                                            <p className="text-sm font-black text-gray-900 dark:text-white truncate max-w-[150px] transition-colors">
-                                                {businessLicense || "Select PDF/IMG"}
+                                            <p className="text-sm font-black text-gray-900 dark:text-white truncate max-w-[180px] transition-colors">
+                                                {businessLicense || t('select_file')}
                                             </p>
-                                            {!businessLicense && <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-1">Max. 5MB</p>}
+                                            {!businessLicense && <p className="text-[10px] font-bold text-white/30 uppercase tracking-[0.2em] mt-1.5">{t('max_size')}</p>}
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="space-y-3">
-                                    <label className="text-[11px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest ml-1 transition-colors">TIN Certificate</label>
+                                <div className="space-y-4">
+                                    <label className="text-[10px] font-black text-white/50 dark:text-gray-400 uppercase tracking-[0.2em] ml-1 transition-colors">{t('tin_certificate_label')}</label>
                                     <input
                                         type="file"
                                         ref={tinRef}
@@ -455,21 +461,21 @@ function RegisterContent() {
                                     <div
                                         onClick={() => tinRef.current?.click()}
                                         className={cn(
-                                            "border border-gray-100 dark:border-white/10 rounded-[24px] p-6 flex flex-col justify-center h-full bg-white dark:bg-white/[0.02] cursor-pointer hover:shadow-xl hover:shadow-black/5 transition-all group",
-                                            tinCertificate && "bg-green-50/20 dark:bg-green-500/5 border-green-100 dark:border-green-500/10"
+                                            "border border-white/20 dark:border-white/10 rounded-[32px] p-8 flex flex-col justify-center h-full bg-white/10 dark:bg-white/[0.02] cursor-pointer hover:shadow-2xl hover:bg-white/30 transition-all group",
+                                            tinCertificate && "bg-green-500/10 border-green-500/20"
                                         )}
                                     >
-                                        <div className="flex items-center gap-4 mb-4">
-                                            <div className="w-10 h-10 bg-primary dark:bg-accent rounded-xl flex items-center justify-center text-white font-black text-[12px] shadow-lg shadow-blue-900/10 dark:shadow-none group-hover:rotate-6 transition-transform">PDF</div>
+                                        <div className="flex items-center gap-5 mb-6">
+                                            <div className="w-12 h-12 bg-primary dark:bg-accent rounded-2xl flex items-center justify-center text-white font-black text-[14px] shadow-xl shadow-blue-900/10 group-hover:scale-110 group-hover:-rotate-3 transition-all">PDF</div>
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-black text-gray-900 dark:text-white truncate transition-colors">{tinCertificate || 'Tax Certificate'}</p>
-                                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Required</p>
+                                                <p className="text-md font-black text-gray-900 dark:text-white truncate transition-colors uppercase tracking-tight">{tinCertificate || t('tax_certificate')}</p>
+                                                <p className="text-[11px] font-bold text-white/40 uppercase tracking-[0.2em] mt-1">{t('required_doc')}</p>
                                             </div>
                                         </div>
-                                        <div className="h-1 bg-gray-50 dark:bg-white/5 rounded-full overflow-hidden">
+                                        <div className="h-1.5 bg-white/10 dark:bg-white/5 rounded-full overflow-hidden">
                                             <div
                                                 className={cn(
-                                                    "h-full transition-all duration-1000",
+                                                    "h-full transition-all duration-1000 shadow-[0_0_10px_rgba(34,197,94,0.4)]",
                                                     isUploadingTin ? "bg-primary w-1/2 animate-pulse" :
                                                         tinCertificateUrl ? "bg-green-500 w-full" : "bg-primary/20 w-0"
                                                 )}
@@ -479,8 +485,8 @@ function RegisterContent() {
                                 </div>
                             </div>
 
-                            <div className="space-y-3">
-                                <label className="text-[11px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest ml-1 transition-colors">Owner Identity</label>
+                            <div className="space-y-4">
+                                <label className="text-[10px] font-black text-white/50 dark:text-gray-400 uppercase tracking-[0.2em] ml-1 transition-colors">{t('owner_id_label')}</label>
                                 <input
                                     type="file"
                                     ref={ownerIdRef}
@@ -491,25 +497,25 @@ function RegisterContent() {
                                 <div
                                     onClick={() => ownerIdRef.current?.click()}
                                     className={cn(
-                                        "border border-gray-100 dark:border-white/10 rounded-[32px] p-6 flex items-center gap-6 bg-white dark:bg-white/[0.02] cursor-pointer hover:shadow-xl hover:border-primary transition-all transition-colors group",
-                                        ownerId && "bg-green-50/20 dark:bg-green-500/5 border-green-100 dark:border-green-500/10 shadow-none"
+                                        "border border-white/20 dark:border-white/10 rounded-[40px] p-7 flex items-center gap-7 bg-white/10 dark:bg-white/[0.02] cursor-pointer hover:shadow-2xl hover:border-primary/50 transition-all group",
+                                        ownerId && "bg-green-500/10 border-green-500/20 shadow-none"
                                     )}
                                 >
-                                    <div className="w-14 h-14 bg-gray-50 dark:bg-white/5 rounded-[20px] flex items-center justify-center text-gray-300 dark:text-gray-700 group-hover:scale-110 group-hover:bg-primary-dark group-hover:text-white transition-all duration-500">
+                                    <div className="w-16 h-16 bg-white/20 dark:bg-white/5 rounded-[24px] flex items-center justify-center text-primary/40 dark:text-gray-600 group-hover:scale-110 group-hover:bg-primary group-hover:text-white transition-all duration-700 shadow-inner">
                                         {isUploadingId ? (
-                                            <div className="w-6 h-6 border-2 border-gray-300 border-t-primary rounded-full animate-spin" />
+                                            <div className="w-7 h-7 border-3 border-gray-300 border-t-primary rounded-full animate-spin" />
                                         ) : ownerIdUrl ? (
-                                            <Check size={24} className="text-green-500" />
+                                            <Check size={32} className="text-green-500" />
                                         ) : (
-                                            <User size={24} />
+                                            <User size={32} />
                                         )}
                                     </div>
                                     <div className="flex-1">
-                                        <h4 className="text-sm font-black text-gray-900 dark:text-white transition-colors uppercase tracking-tight">{ownerId || "National ID / Passport"}</h4>
-                                        <p className="text-[10px] font-medium text-gray-500 dark:text-gray-400 transition-colors uppercase tracking-widest mt-0.5">Kebele or Passport</p>
+                                        <h4 className="text-md font-black text-gray-900 dark:text-white transition-colors uppercase tracking-tight">{ownerId || t('national_id_passport')}</h4>
+                                        <p className="text-[11px] font-medium text-white/40 dark:text-gray-500 transition-colors uppercase tracking-[0.1em] mt-1">{t('kebele_id_passport')}</p>
                                     </div>
-                                    <div className="w-10 h-10 rounded-full bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10 flex items-center justify-center text-gray-300 dark:text-gray-700 group-hover:text-primary transition-colors">
-                                        <ChevronRight size={20} />
+                                    <div className="w-12 h-12 rounded-full bg-white/10 dark:bg-white/5 border border-white/10 flex items-center justify-center text-white/30 group-hover:text-primary group-hover:bg-white transition-all">
+                                        <ChevronRight size={24} />
                                     </div>
                                 </div>
                             </div>
@@ -525,28 +531,29 @@ function RegisterContent() {
         <main className="min-h-screen bg-white dark:bg-black flex flex-col transition-colors duration-500 overflow-x-hidden">
             <PublicHeader />
 
-            <div className="flex-1 flex flex-col items-center justify-center p-4 md:p-8 lg:p-12 relative">
-                {/* Background Blobs */}
-                <div className="absolute top-1/4 right-0 w-80 h-80 bg-primary/5 rounded-full blur-[100px] -z-10" />
-                <div className="absolute bottom-1/4 left-0 w-80 h-80 bg-accent/5 rounded-full blur-[100px] -z-10" />
+            <div className="flex-1 flex flex-col items-center justify-center p-4 md:p-8 lg:p-12 pt-24 md:pt-28 lg:pt-32 relative overflow-hidden bg-gradient-to-br from-primary via-primary-dark/95 to-white dark:via-black dark:to-black transition-colors duration-1000">
+                {/* Background Decoration - Immersive Glows */}
+                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/10 rounded-full blur-[120px] -mr-64 -mt-64 animate-pulse opacity-50" />
+                <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-accent/10 rounded-full blur-[120px] -ml-40 -mb-40" />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_var(--tw-gradient-stops))] from-white/10 via-transparent to-orange-50/5 dark:from-white/5 dark:to-transparent -z-10" />
 
-                <div className="w-full max-w-2xl space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-1000">
+                <div className="w-full max-w-2xl space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-1000 relative z-10">
                     <div className="text-center space-y-2">
-                        <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-primary/5 dark:bg-primary/10 rounded-full border border-primary/10">
-                            <Sparkles size={10} className="text-primary dark:text-accent" />
-                            <span className="text-[8px] font-black text-primary dark:text-accent uppercase tracking-widest">Registration Flow</span>
+                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 backdrop-blur-md rounded-full border border-white/20">
+                            <Sparkles size={12} className="text-accent animate-pulse" />
+                            <span className="text-[9px] font-black text-white uppercase tracking-[0.2em]">{t('partner_portal_version')}</span>
                         </div>
-                        <h2 className="text-3xl md:text-4xl font-black text-gray-900 dark:text-white tracking-tight transition-colors">Partner Registration</h2>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto font-medium transition-colors">Join the largest rescue network in Ethiopia.</p>
+                        <h2 className="text-3xl md:text-5xl font-black text-white tracking-tight transition-colors drop-shadow-sm">{t('registration_title')}</h2>
+                        <p className="text-sm text-white/50 max-w-md mx-auto font-medium transition-colors mt-2">{t('registration_subtitle')}</p>
                     </div>
 
-                    <div className="bg-white dark:bg-[#0A0A0A] rounded-[32px] shadow-2xl shadow-blue-900/5 border border-gray-100 dark:border-white/5 overflow-hidden flex flex-col transition-colors">
+                    <div className="bg-white/40 dark:bg-white/[0.02] backdrop-blur-2xl rounded-[40px] shadow-[0_32px_120px_-15px_rgba(0,0,0,0.1)] dark:shadow-none border border-white/40 dark:border-white/5 overflow-hidden flex flex-col transition-all duration-500">
                         {/* Stepper Navigation */}
-                        <div className="border-b border-gray-50 dark:border-white/5 p-6 flex justify-center bg-gray-50/30 dark:bg-white/[0.01]">
+                        <div className="border-b border-white/20 dark:border-white/5 p-8 flex justify-center bg-white/20 dark:bg-white/[0.01]">
                             <div className="flex items-center w-full max-w-xl relative">
-                                <div className="absolute top-[16px] left-0 w-full h-[1.5px] bg-gray-100 dark:bg-white/5 z-0"></div>
+                                <div className="absolute top-[16px] left-0 w-full h-[2px] bg-white/20 dark:bg-white/5 z-0"></div>
                                 <div
-                                    className="absolute top-[16px] left-0 h-[1.5px] bg-accent transition-all duration-700 z-0"
+                                    className="absolute top-[16px] left-0 h-[2px] bg-accent shadow-[0_0_15px_rgba(249,115,22,0.5)] transition-all duration-1000 z-0"
                                     style={{ width: `${(currentStep - 1) * 33.33}%` }}
                                 ></div>
 
@@ -554,19 +561,19 @@ function RegisterContent() {
                                     <div key={step.id} className="flex-1 flex flex-col items-center relative z-10">
                                         <div
                                             className={cn(
-                                                "w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs transition-all duration-500",
-                                                currentStep > step.id ? "bg-green-500 text-white shadow-lg shadow-green-500/20" :
-                                                    currentStep === step.id ? "bg-accent text-white scale-110 shadow-xl shadow-orange-500/20" :
-                                                        "bg-white dark:bg-white/10 border-2 border-gray-100 dark:border-white/5 text-gray-300 dark:text-gray-700"
+                                                "w-9 h-9 rounded-2xl flex items-center justify-center font-black text-xs transition-all duration-700",
+                                                currentStep > step.id ? "bg-green-500 text-white shadow-xl shadow-green-500/20" :
+                                                    currentStep === step.id ? "bg-accent text-white scale-125 shadow-2xl shadow-orange-500/40" :
+                                                        "bg-white/20 dark:bg-white/5 backdrop-blur-md border border-white/30 dark:border-white/10 text-white/40"
                                             )}
                                         >
-                                            {currentStep > step.id ? <Check size={16} strokeWidth={3} /> : step.id}
+                                            {currentStep > step.id ? <Check size={18} strokeWidth={3} /> : step.id}
                                         </div>
                                         <span className={cn(
-                                            "text-[8px] font-black mt-3 uppercase tracking-[0.2em] transition-colors",
-                                            currentStep === step.id ? "text-accent" : "text-gray-300 dark:text-gray-700"
+                                            "text-[9px] font-black mt-4 uppercase tracking-[0.2em] transition-all duration-500",
+                                            currentStep === step.id ? "text-white translate-y-1" : "text-white/30"
                                         )}>
-                                            {step.name}
+                                            {t(step.name)}
                                         </span>
                                     </div>
                                 ))}
@@ -574,44 +581,44 @@ function RegisterContent() {
                         </div>
 
                         {/* Step Content */}
-                        <div className="p-8 md:p-12 flex-1 min-h-[350px]">
+                        <div className="p-8 md:p-14 flex-1 min-h-[400px]">
                             {renderStep()}
                         </div>
 
                         {/* Action Footer */}
-                        <div className="p-8 bg-gray-50/50 dark:bg-white/[0.01] border-t border-gray-100 dark:border-white/5 flex justify-between items-center transition-colors">
+                        <div className="p-8 bg-white/20 dark:bg-white/[0.01] border-t border-white/20 dark:border-white/10 flex justify-between items-center transition-all">
                             <button
                                 onClick={() => setCurrentStep(prev => Math.max(1, prev - 1))}
                                 disabled={isLoading}
                                 className={cn(
-                                    "flex items-center gap-2 px-6 py-3.5 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] transition-all",
-                                    currentStep === 1 ? "invisible" : "text-gray-400 hover:text-gray-900 dark:hover:text-white disabled:opacity-50"
+                                    "flex items-center gap-2 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all",
+                                    currentStep === 1 ? "invisible" : "text-white/60 hover:text-white hover:bg-white/10 disabled:opacity-50"
                                 )}
                             >
                                 <ChevronRight className="rotate-180" size={14} />
-                                Back
+                                {t('back')}
                             </button>
 
                             <button
                                 onClick={handleNextStep}
                                 disabled={isLoading}
-                                className="group relative flex items-center gap-3 bg-primary dark:bg-accent hover:bg-primary-dark dark:hover:bg-orange-600 px-10 py-4 rounded-[18px] text-white text-[10px] font-black uppercase tracking-[0.2em] shadow-xl shadow-blue-900/10 dark:shadow-none hover:scale-[1.03] active:scale-95 transition-all overflow-hidden disabled:opacity-70 disabled:scale-100"
+                                className="group relative flex items-center gap-3 bg-primary dark:bg-accent border border-white/20 dark:border-none px-12 py-4.5 rounded-[22px] text-white text-[11px] font-black uppercase tracking-[0.2em] shadow-2xl shadow-blue-900/20 dark:shadow-none hover:scale-[1.05] active:scale-95 transition-all overflow-hidden disabled:opacity-70 disabled:scale-100"
                             >
                                 {isLoading ? (
-                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                                 ) : (
                                     <>
-                                        <span className="relative z-10">{currentStep === 4 ? 'Complete Registration' : 'Next Step'}</span>
-                                        <ArrowRight size={16} className="relative z-10 group-hover:translate-x-2 transition-transform duration-500" />
+                                        <span className="relative z-10">{currentStep === 4 ? t('complete_registration') : t('next_step')}</span>
+                                        <ArrowRight size={18} className="relative z-10 group-hover:translate-x-2 transition-transform duration-500" />
                                     </>
                                 )}
-                                <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-150%] group-hover:translate-x-[150%] transition-transform duration-1000"></div>
                             </button>
                         </div>
                     </div>
 
-                    <p className="text-center text-[9px] font-bold text-gray-300 dark:text-gray-800 uppercase tracking-[0.4em] transition-colors pb-6">
-                        Step {currentStep} of 4 — Business Partner Verification
+                    <p className="text-center text-[10px] font-black text-white/30 uppercase tracking-[0.5em] transition-colors pb-12">
+                        {t('step_indicator').replace('{current}', currentStep.toString())}
                     </p>
                 </div>
             </div>

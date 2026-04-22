@@ -44,6 +44,9 @@ export default function ProviderLoginPage() {
             if (accessToken) {
                 localStorage.setItem('access_token', accessToken);
                 localStorage.setItem('refresh_token', response.data.refresh);
+                if (response.data.user) {
+                    localStorage.setItem('userProfile', JSON.stringify(response.data.user));
+                }
                 showToast("Login successful!", "success");
 
                 // Redirection Logic
@@ -68,19 +71,21 @@ export default function ProviderLoginPage() {
         <main className="min-h-screen bg-white dark:bg-black flex flex-col transition-colors duration-500 overflow-x-hidden">
             <PublicHeader />
 
-            <div className="flex-1 flex flex-col md:flex-row relative">
-                {/* Background Decoration */}
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_var(--tw-gradient-stops))] from-blue-50/50 via-transparent to-orange-50/20 dark:from-blue-900/5 dark:to-orange-900/5 -z-10" />
+            <div className="flex-1 flex flex-col md:flex-row pt-20 md:pt-0 relative overflow-hidden bg-gradient-to-br from-primary via-primary-dark/95 to-white dark:via-black dark:to-black transition-colors duration-1000">
+                {/* Background Decoration - Shared across both sides */}
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_var(--tw-gradient-stops))] from-white/10 via-transparent to-orange-50/5 dark:from-white/5 dark:to-transparent -z-10" />
+
+                {/* Global Glow Effects */}
+                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/10 rounded-full blur-[120px] -mr-64 -mt-64 animate-pulse opacity-50" />
+                <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-accent/10 rounded-full blur-[120px] -ml-40 -mb-40" />
 
                 {/* Left Side - Visual Branding */}
-                <div className="hidden md:flex md:w-[40%] bg-primary dark:bg-primary-dark p-12 lg:p-16 flex-col justify-center relative overflow-hidden transition-colors duration-500">
-                    <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full blur-3xl -mr-40 -mt-40 transition-all duration-1000 group-hover:bg-white/10" />
-                    <div className="absolute bottom-0 left-0 w-56 h-56 bg-accent/20 rounded-full blur-3xl -ml-28 -mb-28 animate-pulse" />
+                <div className="hidden md:flex md:w-[40%] p-12 lg:p-16 flex-col justify-center relative transition-all duration-700">
 
                     <div className="relative z-10 space-y-6 animate-in fade-in slide-in-from-left-8 duration-1000">
                         <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/10 backdrop-blur-md rounded-full border border-white/20">
                             <Sparkles size={12} className="text-accent animate-pulse" />
-                            <span className="text-[9px] font-black text-white uppercase tracking-[0.2em]">Partner Portal v4.2</span>
+                            <span className="text-[9px] font-black text-white uppercase tracking-[0.2em]">Partner Portal v1.0</span>
                         </div>
 
                         <h1 className="text-4xl lg:text-5xl font-black text-white leading-tight tracking-tight">
@@ -107,16 +112,17 @@ export default function ProviderLoginPage() {
                 </div>
 
                 {/* Right Side - Form */}
-                <div className="flex-1 flex flex-col items-center justify-center p-8 md:p-16 lg:p-24">
-                    <div className="w-full max-w-sm space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-1000">
+                <div className="flex-1 flex flex-col items-center justify-center p-8 md:p-16 lg:p-24 relative">
+                    {/* Glassmorphism card for the form to ensure readability against the global gradient */}
+                    <div className="w-full max-w-sm p-8 md:p-10 rounded-[32px] bg-white/40 dark:bg-white/[0.03] backdrop-blur-xl border border-white/30 dark:border-white/5 shadow-2xl shadow-blue-900/10 dark:shadow-none animate-in fade-in slide-in-from-bottom-8 duration-1000">
                         <div className="space-y-2">
                             <h2 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight transition-colors">Welcome back</h2>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 font-medium transition-colors">Sign in to manage your rescue operations.</p>
+                            <p className="text-sm text-gray-800 dark:text-gray-400 font-medium transition-colors">Sign in to manage your rescue operations.</p>
                         </div>
 
                         <form className="space-y-5" onSubmit={handleSubmit}>
                             <div className="space-y-2">
-                                <label className="text-[11px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest ml-1 transition-colors">Phone Number</label>
+                                <label className="text-[11px] font-black text-gray-800 dark:text-gray-400 uppercase tracking-widest ml-1 transition-colors">Phone Number</label>
                                 <div className="relative group">
                                     <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 dark:text-gray-700 group-focus-within:text-primary transition-colors" size={16} />
                                     <input
@@ -132,7 +138,7 @@ export default function ProviderLoginPage() {
 
                             <div className="space-y-2">
                                 <div className="flex justify-between items-center px-1">
-                                    <label className="text-[11px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest transition-colors">Password</label>
+                                    <label className="text-[11px] font-black text-gray-800 dark:text-gray-400 uppercase tracking-widest transition-colors">Password</label>
                                     <Link href="#" className="text-[11px] font-black text-primary dark:text-accent uppercase tracking-widest hover:underline transition-colors">Forgot?</Link>
                                 </div>
                                 <div className="relative group">
@@ -158,7 +164,7 @@ export default function ProviderLoginPage() {
                             <button
                                 type="submit"
                                 disabled={isLoading}
-                                className="w-full py-4 bg-primary dark:bg-accent text-white rounded-[20px] text-[11px] font-black uppercase tracking-[0.2em] shadow-lg shadow-blue-100 dark:shadow-none hover:bg-primary-dark dark:hover:bg-orange-600 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:scale-100"
+                                className="w-full mt-6 py-4 bg-primary dark:bg-accent text-white rounded-[20px] text-[11px] font-black uppercase tracking-[0.2em] shadow-lg shadow-blue-100 dark:shadow-none hover:bg-primary-dark dark:hover:bg-orange-600 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:scale-100"
                             >
                                 {isLoading ? (
                                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -171,13 +177,13 @@ export default function ProviderLoginPage() {
                             </button>
                         </form>
 
-                        <div className="relative flex items-center py-2">
+                        <div className="relative flex items-center py-8">
                             <div className="flex-grow border-t border-gray-100 dark:border-white/5"></div>
-                            <span className="flex-shrink mx-4 text-[9px] font-black text-gray-300 dark:text-gray-700 uppercase tracking-[0.3em]">Continue with</span>
+                            <span className="flex-shrink mx-4 text-[9px] font-black text-gray-800 dark:text-gray-700 uppercase tracking-[0.3em]">Continue with</span>
                             <div className="flex-grow border-t border-gray-100 dark:border-white/5"></div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3">
+                        {/* <div className="grid grid-cols-2 gap-3">
                             <button className="flex items-center justify-center gap-2 py-3.5 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-xl hover:bg-gray-50 dark:hover:bg-white/10 transition-all text-[10px] font-black text-gray-900 dark:text-white uppercase tracking-widest shadow-sm">
                                 <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-3.5 h-3.5" />
                                 Google
@@ -186,9 +192,9 @@ export default function ProviderLoginPage() {
                                 <span className="w-3.5 h-3.5 bg-[#1877F2] text-white rounded flex items-center justify-center text-[7px] font-black">f</span>
                                 Facebook
                             </button>
-                        </div>
+                        </div> */}
 
-                        <p className="text-center text-[10px] font-bold text-gray-400 dark:text-gray-600 uppercase tracking-widest transition-colors">
+                        <p className="text-center text-[10px] font-bold text-gray-800 dark:text-gray-600 uppercase tracking-widest transition-colors pt-6 pb-6">
                             Don't have an account? <Link href="/auth/register" className="text-primary dark:text-accent hover:underline decoration-2 underline-offset-4">Join the Network</Link>
                         </p>
                     </div>

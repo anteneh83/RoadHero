@@ -100,14 +100,15 @@ export const IncomeModal = ({ isOpen, onClose }: IncomeModalProps) => {
                                 value={paymentMethod}
                                 onChange={(e) => setPaymentMethod(e.target.value)}
                                 disabled={isSubmitting}
-                                className="w-full bg-gray-50 dark:bg-white/5 border border-transparent dark:border-white/5 rounded-xl px-5 py-3 text-xs font-bold text-gray-900 dark:text-white appearance-none outline-none focus:ring-2 focus:ring-primary/10 dark:focus:ring-primary/30 transition-all cursor-pointer disabled:opacity-50"
+                                className="w-full bg-gray-50 dark:bg-white/10 border border-gray-200 dark:border-white/10 rounded-xl px-5 py-3 text-xs font-bold text-gray-900 dark:text-white appearance-none outline-none focus:ring-2 focus:ring-primary/10 dark:focus:ring-primary/30 transition-all cursor-pointer disabled:opacity-50"
                             >
-                                <option value="TELEBIRR">Telebirr</option>
-                                <option value="CBE_BIRR">CBE Birr</option>
-                                <option value="CASH">Cash</option>
-                                <option value="CHAPA">Chapa Transfer</option>
+                                <option value="CASH" className="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">Cash</option>
+                                <option value="TELEBIRR" className="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">Telebirr</option>
+                                <option value="CHAPA" className="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">Chapa Transfer</option>
+                                <option value="CBE" className="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">CBE</option>
+                                <option value="BANK_TRANSFER" className="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">Bank Transfer</option>
                             </select>
-                            <ChevronDown size={16} className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-600 group-hover:text-primary dark:group-hover:text-accent transition-colors pointer-events-none" />
+                            <ChevronDown size={16} className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-400 pointer-events-none" />
                         </div>
                     </div>
 

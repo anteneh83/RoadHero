@@ -105,6 +105,7 @@ export interface ProfileData {
     telegram_channel?: string;
     address_instructions?: string;
     gallery_urls?: string[];
+    coverage_radius_km?: number | string;
 }
 
 export interface AvailabilityPayload {

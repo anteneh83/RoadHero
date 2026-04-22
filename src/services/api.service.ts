@@ -508,6 +508,14 @@ export const notificationService = {
         const response = await api.get('provider/notifications/');
         return response.data;
     },
+    markAsRead: async (id: number) => {
+        const response = await api.patch(`provider/notifications/${id}/read`);
+        return response.data;
+    },
+    markAllAsRead: async () => {
+        const response = await api.patch('provider/notifications/read-all');
+        return response.data;
+    },
 };
 
 export const utilService = {

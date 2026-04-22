@@ -10,7 +10,8 @@ import {
     Trash2,
     Loader2,
     Search,
-    ChevronLeft
+    ChevronLeft,
+    Check
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -57,6 +58,47 @@ export default function NotificationsPage() {
         return () => clearInterval(interval);
     }, [fetchNotifications]);
 
+    const handleMarkAsRead = async (id: number) => {
+        try {
+            await notificationService.markAsRead(id);
+            setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+        } catch (error) {
+            console.error('Failed to mark notification as read:', error);
+        }
+    };
+
+    const handleMarkAllAsRead = async () => {
+        try {
+            await notificationService.markAllAsRead();
+            setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+        } catch (error) {
+            console.error('Failed to mark all as read:', error);
+        }
+    };
+
+    const handleViewDetails = (notification: Notification) => {
+        // Mark as read when viewing details
+        if (!notification.is_read) {
+            handleMarkAsRead(notification.id);
+        }
+
+        const message = notification.message?.toLowerCase() || '';
+        const title = notification.title?.toLowerCase() || '';
+
+        if (message.includes('review') || title.includes('review')) {
+            router.push('/provider/reviews');
+        } else if (message.includes('job') || title.includes('job') || message.includes('request')) {
+            router.push('/provider/queue');
+        } else if (message.includes('inventory') || title.includes('inventory') || message.includes('stock')) {
+            router.push('/provider/inventory');
+        } else if (message.includes('message') || title.includes('message')) {
+            router.push('/provider/messages');
+        } else {
+            // Default or fallback details
+            console.log('Viewing notification details:', notification);
+        }
+    };
+
     const getIcon = (type: string) => {
         switch (type) {
             case 'SUCCESS': return <CheckCircle2 className="text-green-500" size={18} />;
@@ -102,6 +144,14 @@ export default function NotificationsPage() {
                             className="w-full pl-11 pr-5 py-3 rounded-xl bg-white dark:bg-white/5 border border-gray-100 dark:border-white/5 shadow-sm outline-none focus:ring-4 focus:ring-primary/5 dark:focus:ring-primary/20 transition-all text-[11px] font-medium text-gray-900 dark:text-white placeholder:text-gray-300 dark:placeholder:text-gray-700"
                         />
                     </div>
+
+                    <button
+                        onClick={handleMarkAllAsRead}
+                        className="w-full md:w-auto px-6 py-3 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all"
+                    >
+                        <Check size={14} />
+                        Mark All as Read
+                    </button>
                 </div>
 
                 <div className="bg-white dark:bg-white/5 rounded-[40px] border border-gray-100 dark:border-white/5 shadow-sm overflow-hidden transition-colors">
@@ -153,11 +203,17 @@ export default function NotificationsPage() {
 
                                         <div className="flex items-center gap-4 pt-2">
                                             {!notification.is_read && (
-                                                <button className="text-[9px] font-black text-primary dark:text-accent uppercase tracking-widest hover:underline transition-all">
+                                                <button
+                                                    onClick={() => handleMarkAsRead(notification.id)}
+                                                    className="text-[9px] font-black text-primary dark:text-accent uppercase tracking-widest hover:underline transition-all"
+                                                >
                                                     Mark as Read
                                                 </button>
                                             )}
-                                            <button className="text-[9px] font-black text-gray-400 dark:text-gray-600 uppercase tracking-widest hover:text-gray-900 dark:hover:text-white transition-all">
+                                            <button
+                                                onClick={() => handleViewDetails(notification)}
+                                                className="text-[9px] font-black text-gray-400 dark:text-gray-600 uppercase tracking-widest hover:text-gray-900 dark:hover:text-white transition-all"
+                                            >
                                                 View Details
                                             </button>
                                         </div>

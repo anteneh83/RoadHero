@@ -159,7 +159,7 @@ export default function HelpPage() {
                             </div>
 
                             <button
-                                onClick={() => router.push('/provider/messages')}
+                                onClick={() => router.push('/provider/support')}
                                 className="w-full py-4 bg-white dark:bg-white/10 rounded-xl text-[9px] font-black text-[#F97316] dark:text-white uppercase tracking-widest hover:scale-[1.02] active:scale-95 transition-all shadow-lg dark:shadow-none relative z-10"
                             >
                                 Chat with RoadHero Admin

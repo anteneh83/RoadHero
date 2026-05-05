@@ -89,6 +89,7 @@ export interface Technician {
     photo_url?: string;
     rating?: string;
     created_at?: string;
+    initial_pin?: string;
 }
 
 export interface ProfileData {
@@ -120,6 +121,7 @@ export interface Technician {
     assigned_vehicle_plate?: string;
     photo_url?: string;
     is_active: boolean;
+    initial_pin?: string;
 }
 
 export interface AddTechnicianPayload {
@@ -136,6 +138,35 @@ export interface UpdateTechnicianPayload {
     is_active?: boolean;
     assigned_vehicle_plate?: string;
     photo_url?: string;
+}
+
+// Normalize technician objects from API so the UI can always rely on `specialties: string[]`.
+function normalizeTechnician(t: any) {
+    if (!t) return t;
+    let specialties: any = [];
+    if (Array.isArray(t.specialties)) {
+        specialties = t.specialties;
+    } else if (typeof t.specialties === 'string') {
+        try {
+            const parsed = JSON.parse(t.specialties);
+            specialties = Array.isArray(parsed) ? parsed : [parsed];
+        } catch (_e) {
+            specialties = [t.specialties];
+        }
+    } else if (Array.isArray(t.skills)) {
+        specialties = t.skills;
+    } else if (typeof t.skills === 'string') {
+        try {
+            const parsed = JSON.parse(t.skills);
+            specialties = Array.isArray(parsed) ? parsed : [parsed];
+        } catch (_e) {
+            specialties = [t.skills];
+        }
+    } else {
+        specialties = [];
+    }
+
+    return { ...t, specialties };
 }
 
 export interface Service {
@@ -395,22 +426,58 @@ export const providerService = {
 export const technicianService = {
     list: async () => {
         const response = await api.get('provider/technicians/');
-        return response.data;
+        const data = response.data;
+        const localNormalize = (t: any) => {
+            if (!t) return t;
+            let specialties: any = [];
+            if (Array.isArray(t.specialties)) {
+                specialties = t.specialties;
+            } else if (typeof t.specialties === 'string') {
+                try {
+                    const parsed = JSON.parse(t.specialties);
+                    specialties = Array.isArray(parsed) ? parsed : [parsed];
+                } catch (_e) {
+                    specialties = [t.specialties];
+                }
+            } else if (Array.isArray(t.skills)) {
+                specialties = t.skills;
+            } else if (typeof t.skills === 'string') {
+                try {
+                    const parsed = JSON.parse(t.skills);
+                    specialties = Array.isArray(parsed) ? parsed : [parsed];
+                } catch (_e) {
+                    specialties = [t.skills];
+                }
+            } else {
+                specialties = [];
+            }
+            return { ...t, specialties };
+        };
+        if (Array.isArray(data)) return data.map(localNormalize);
+        return localNormalize(data);
     },
-    add: async (formData: FormData) => {
-        const response = await api.post('provider/technicians/', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        return response.data;
+    add: async (payload: { full_name: string; phone_number: string; skills?: string[] }) => {
+        const response = await api.post('provider/technicians/', payload);
+
+        const res = response.data;       // { status, data }
+        const tech = res.data;           // ✅ actual object
+
+        const normalized = normalizeTechnician(tech);
+
+        return {
+            ...normalized,
+            initial_pin: tech.initial_pin // ✅ correct source
+        };
     },
     get: async (id: number) => {
         const response = await api.get(`provider/technicians/${id}`);
-        return response.data;
+        // reuse module normalize as fallback
+        try { return normalizeTechnician(response.data); } catch { return response.data; }
     },
     update: async (id: number, payload: Partial<Technician> | FormData) => {
         const headers = payload instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {};
         const response = await api.put(`provider/technicians/${id}`, payload, { headers });
-        return response.data;
+        try { return normalizeTechnician(response.data); } catch { return response.data; }
     },
     delete: async (id: number) => {
         const response = await api.delete(`provider/technicians/${id}`);

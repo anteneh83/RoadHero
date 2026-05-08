@@ -81,14 +81,18 @@ export interface ServiceOffer {
 
 export interface Technician {
     id: number;
+    user_id?: number;
     full_name: string;
     phone_number: string;
+    /** The API may call this field `skills` (create response) or `specialties` (list/detail/update). Both are normalized to `specialties` by the service layer. */
     specialties: string[];
+    skills?: string[];
     is_active: boolean;
     assigned_vehicle_plate?: string;
     photo_url?: string;
     rating?: string;
     created_at?: string;
+    /** Only returned once, immediately after creation. */
     initial_pin?: string;
 }
 
@@ -113,31 +117,19 @@ export interface AvailabilityPayload {
     is_online: boolean;
 }
 
-export interface Technician {
-    id: number;
-    full_name: string;
-    phone_number: string;
-    specialties: string[];
-    assigned_vehicle_plate?: string;
-    photo_url?: string;
-    is_active: boolean;
-    initial_pin?: string;
-}
-
+/** POST /api/v1/provider/technicians/ — uses `skills`, not `specialties` */
 export interface AddTechnicianPayload {
     full_name: string;
     phone_number: string;
-    specialties?: string[];
-    assigned_vehicle_plate?: string;
-    photo_url?: string;
+    skills?: string[];
 }
 
+/** PUT /api/v1/provider/technicians/{id} — uses `specialties` */
 export interface UpdateTechnicianPayload {
     full_name?: string;
     specialties?: string[];
     is_active?: boolean;
     assigned_vehicle_plate?: string;
-    photo_url?: string;
 }
 
 // Normalize technician objects from API so the UI can always rely on `specialties: string[]`.
@@ -424,62 +416,55 @@ export const providerService = {
 };
 
 export const technicianService = {
-    list: async () => {
+    /**
+     * GET /api/v1/provider/technicians/
+     * Returns a normalized Technician[] (specialties always an array).
+     */
+    list: async (): Promise<Technician[]> => {
         const response = await api.get('provider/technicians/');
-        const data = response.data;
-        const localNormalize = (t: any) => {
-            if (!t) return t;
-            let specialties: any = [];
-            if (Array.isArray(t.specialties)) {
-                specialties = t.specialties;
-            } else if (typeof t.specialties === 'string') {
-                try {
-                    const parsed = JSON.parse(t.specialties);
-                    specialties = Array.isArray(parsed) ? parsed : [parsed];
-                } catch (_e) {
-                    specialties = [t.specialties];
-                }
-            } else if (Array.isArray(t.skills)) {
-                specialties = t.skills;
-            } else if (typeof t.skills === 'string') {
-                try {
-                    const parsed = JSON.parse(t.skills);
-                    specialties = Array.isArray(parsed) ? parsed : [parsed];
-                } catch (_e) {
-                    specialties = [t.skills];
-                }
-            } else {
-                specialties = [];
-            }
-            return { ...t, specialties };
-        };
-        if (Array.isArray(data)) return data.map(localNormalize);
-        return localNormalize(data);
+        // Unwrap { status, data: [...] } envelope or plain array
+        const raw = response.data?.data ?? response.data;
+        const arr = Array.isArray(raw) ? raw : (raw ? [raw] : []);
+        return arr.map(normalizeTechnician) as Technician[];
     },
-    add: async (payload: { full_name: string; phone_number: string; skills?: string[] }) => {
+
+    /**
+     * POST /api/v1/provider/technicians/
+     * Payload: { full_name, phone_number, skills? }
+     * Returns the created Technician (with initial_pin included).
+     */
+    add: async (payload: AddTechnicianPayload): Promise<Technician> => {
         const response = await api.post('provider/technicians/', payload);
-
-        const res = response.data;       // { status, data }
-        const tech = res.data;           // ✅ actual object
-
-        const normalized = normalizeTechnician(tech);
-
-        return {
-            ...normalized,
-            initial_pin: tech.initial_pin // ✅ correct source
-        };
+        // Unwrap { status, data: { id, ..., initial_pin } } envelope
+        const raw = response.data?.data ?? response.data;
+        return normalizeTechnician(raw) as Technician;
     },
-    get: async (id: number) => {
+
+    /**
+     * GET /api/v1/provider/technicians/{id}
+     * Returns full Technician detail.
+     */
+    get: async (id: number): Promise<Technician> => {
         const response = await api.get(`provider/technicians/${id}`);
-        // reuse module normalize as fallback
-        try { return normalizeTechnician(response.data); } catch { return response.data; }
+        const raw = response.data?.data ?? response.data;
+        return normalizeTechnician(raw) as Technician;
     },
-    update: async (id: number, payload: Partial<Technician> | FormData) => {
-        const headers = payload instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {};
-        const response = await api.put(`provider/technicians/${id}`, payload, { headers });
-        try { return normalizeTechnician(response.data); } catch { return response.data; }
+
+    /**
+     * PUT /api/v1/provider/technicians/{id}
+     * Payload: { full_name?, specialties?, is_active?, assigned_vehicle_plate? }
+     */
+    update: async (id: number, payload: UpdateTechnicianPayload): Promise<Technician> => {
+        const response = await api.put(`provider/technicians/${id}`, payload);
+        const raw = response.data?.data ?? response.data;
+        return normalizeTechnician(raw) as Technician;
     },
-    delete: async (id: number) => {
+
+    /**
+     * DELETE /api/v1/provider/technicians/{id}
+     * Soft-deletes (deactivates) the technician.
+     */
+    delete: async (id: number): Promise<any> => {
         const response = await api.delete(`provider/technicians/${id}`);
         return response.data;
     },

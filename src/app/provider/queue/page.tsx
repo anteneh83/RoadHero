@@ -82,8 +82,7 @@ export default function RequestQueuePage() {
 
             setJobs(jobsData);
 
-            const techsData = techsRes.data || techsRes;
-            setTechnicians(Array.isArray(techsData) ? techsData : []);
+            setTechnicians(Array.isArray(techsRes) ? techsRes : []);
 
             if (jobsData.length > 0 && !selectedJobId) {
                 setSelectedJobId(jobsData[0].id);

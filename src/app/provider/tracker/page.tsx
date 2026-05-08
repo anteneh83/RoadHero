@@ -133,8 +133,7 @@ export default function JobTrackerPage() {
             const selectedJob = jobs.find(j => j.id === selectedJobId);
             if (selectedJob && selectedJob.technician_id) {
                 try {
-                    const tRes = await technicianService.get(selectedJob.technician_id);
-                    const tech = tRes.data || tRes;
+                    const tech = await technicianService.get(selectedJob.technician_id);
                     await technicianService.update(tech.id, {
                         full_name: tech.full_name,
                         specialties: tech.specialties || [],

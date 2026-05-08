@@ -44,8 +44,7 @@ export default function TechnicianDetailPage() {
     const fetchTechnician = async () => {
         setIsLoading(true);
         try {
-            const response = await technicianService.get(Number(id));
-            const techData = response.data || response;
+            const techData = await technicianService.get(Number(id));
             setTech(techData);
         } catch (error) {
             console.error("[Technician Detail] Fetch Error:", error);

@@ -16,7 +16,8 @@ import {
     Loader2,
     Check,
     X,
-    User
+    User,
+    Calendar
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { clsx, type ClassValue } from 'clsx';
@@ -38,10 +39,12 @@ export default function RequestQueuePage() {
     const { t } = useLanguage();
     const router = useRouter();
     const [jobs, setJobs] = useState<Job[]>([]);
+    const [scheduledJobs, setScheduledJobs] = useState<Job[]>([]);
     const [technicians, setTechnicians] = useState<Technician[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeFilter, setActiveFilter] = useState('all');
+    const [activeTab, setActiveTab] = useState<'pending' | 'scheduled'>('pending');
     const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
 
     // Accept Modal State
@@ -62,30 +65,44 @@ export default function RequestQueuePage() {
         setIsLoading(true);
         console.log("[Job Queue] Fetching data...");
         try {
-            const [jobsRes, techsRes] = await Promise.all([
+            const [jobsRes, schedRes, techsRes] = await Promise.all([
                 jobService.list({ status: 'PENDING' }),
+                jobService.list({ status: 'scheduled' }),
                 technicianService.list()
             ]);
 
             console.log("[Job Queue] Jobs Response:", jobsRes);
             const rawJobs = Array.isArray(jobsRes.data) ? jobsRes.data : (jobsRes.data?.results || jobsRes.results || (Array.isArray(jobsRes) ? jobsRes : []));
+            const rawSched = Array.isArray(schedRes.data) ? schedRes.data : (schedRes.data?.results || schedRes.results || (Array.isArray(schedRes) ? schedRes : []));
 
             // Map the API response fields to what the UI expects (e.g., driver_name -> customer_name)
             const jobsData = rawJobs.map((job: any) => ({
                 ...job,
                 customer_name: job.customer_name || job.driver_name || 'Unknown',
                 customer_phone: job.customer_phone || job.driver_phone,
-                customer_lat: job.customer_lat || job.latitude || 9.0049,
-                customer_lng: job.customer_lng || job.longitude || 38.7670,
+                customer_lat: Number(job.customer_lat || job.latitude || job.lat || job.driver_lat || job.location_lat || 9.0049),
+                customer_lng: Number(job.customer_lng || job.longitude || job.lng || job.driver_lng || job.location_lng || 38.7670),
+                distance: job.distance || job.address || 'Location provided'
+            }));
+
+            const schedData = rawSched.map((job: any) => ({
+                ...job,
+                customer_name: job.customer_name || job.driver_name || 'Unknown',
+                customer_phone: job.customer_phone || job.driver_phone,
+                customer_lat: Number(job.customer_lat || job.latitude || job.lat || job.driver_lat || job.location_lat || 9.0049),
+                customer_lng: Number(job.customer_lng || job.longitude || job.lng || job.driver_lng || job.location_lng || 38.7670),
                 distance: job.distance || job.address || 'Location provided'
             }));
 
             setJobs(jobsData);
+            setScheduledJobs(schedData);
 
             setTechnicians(Array.isArray(techsRes) ? techsRes : []);
 
             if (jobsData.length > 0 && !selectedJobId) {
                 setSelectedJobId(jobsData[0].id);
+            } else if (schedData.length > 0 && !selectedJobId) {
+                setSelectedJobId(schedData[0].id);
             }
         } catch (error: any) {
             console.error("[Job Queue] Fetch Error:", error);
@@ -158,8 +175,10 @@ export default function RequestQueuePage() {
         }
     };
 
-    const filteredJobs = jobs.filter(job => {
-        const matchesSearch = job.service_type.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    const currentJobList = activeTab === 'pending' ? jobs : scheduledJobs;
+
+    const filteredJobs = currentJobList.filter(job => {
+        const matchesSearch = (job.service_type || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
             (job.customer_name || '').toLowerCase().includes(searchQuery.toLowerCase());
         // For now, simple filter logic
         const matchesFilter = activeFilter === 'all' ||
@@ -168,7 +187,7 @@ export default function RequestQueuePage() {
         return matchesSearch && matchesFilter;
     });
 
-    const selectedJob = jobs.find(j => j.id === selectedJobId);
+    const selectedJob = currentJobList.find(j => j.id === selectedJobId);
 
     return (
         <div className="flex flex-col min-h-screen">
@@ -178,6 +197,30 @@ export default function RequestQueuePage() {
             />
 
             <div className="p-8 lg:p-12 space-y-8 animate-in fade-in duration-1000 pb-20">
+
+                {/* Tab Switcher: Pending vs Scheduled */}
+                <div className="flex bg-white dark:bg-white/5 p-1.5 rounded-2xl border border-gray-100 dark:border-white/5 shadow-sm max-w-md transition-colors">
+                    <button
+                        onClick={() => { setActiveTab('pending'); if (jobs.length > 0) setSelectedJobId(jobs[0].id); }}
+                        className={cn(
+                            "flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2.5",
+                            activeTab === 'pending' ? "bg-primary text-white shadow-lg shadow-primary/20 scale-[1.02]" : "text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                        )}
+                    >
+                        <Clock size={16} />
+                        Pending Requests ({jobs.length})
+                    </button>
+                    <button
+                        onClick={() => { setActiveTab('scheduled'); if (scheduledJobs.length > 0) setSelectedJobId(scheduledJobs[0].id); }}
+                        className={cn(
+                            "flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2.5",
+                            activeTab === 'scheduled' ? "bg-accent text-white shadow-lg shadow-accent/20 scale-[1.02]" : "text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                        )}
+                    >
+                        <Calendar size={16} />
+                        Scheduled ({scheduledJobs.length})
+                    </button>
+                </div>
 
                 {/* Filter & Search Bar */}
                 <div className="flex flex-col md:flex-row gap-4">
@@ -210,7 +253,7 @@ export default function RequestQueuePage() {
                 <div className="flex flex-col lg:flex-row gap-8">
                     {/* Left Column: Request List */}
                     <div className="w-full lg:w-[400px] space-y-6">
-                        <h2 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest leading-none transition-colors">{t('active_requests')} ({filteredJobs.length})</h2>
+                        <h2 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest leading-none transition-colors">{activeTab === 'pending' ? t('active_requests') : 'Scheduled Appointments'} ({filteredJobs.length})</h2>
 
                         <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
                             {isLoading ? (

@@ -17,7 +17,7 @@ const DarkTileLayer = () => {
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url={isDark
                 ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-                : "https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png"
+                : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             }
         />
     );
@@ -73,7 +73,10 @@ interface MapProps {
 function ChangeView({ center, zoom }: { center: [number, number], zoom: number }) {
     const map = useMap();
     useEffect(() => {
-        map.setView(center, zoom);
+        if (center && !isNaN(center[0]) && !isNaN(center[1])) {
+            map.setView(center, zoom);
+            map.invalidateSize();
+        }
     }, [center, zoom, map]);
     return null;
 }
@@ -81,18 +84,18 @@ function ChangeView({ center, zoom }: { center: [number, number], zoom: number }
 export default function Map({ center, zoom = 13, markers = [], polyline, className }: MapProps) {
     return (
         <MapContainer
+            key={`${center[0]}-${center[1]}-${markers.length}`}
             center={center}
             zoom={zoom}
             className={className}
-            style={{ width: '100%', height: '100%', borderRadius: 'inherit' }}
+            style={{ width: '100%', height: '100%', minHeight: '400px', borderRadius: 'inherit' }}
             zoomControl={false}
         >
-            <ChangeView center={center} zoom={zoom} />
             <ChangeView center={center} zoom={zoom} />
             <DarkTileLayer />
             {markers.map((marker, idx) => (
                 <Marker
-                    key={idx}
+                    key={`${marker.type}-${marker.position[0]}-${marker.position[1]}-${idx}`}
                     position={marker.position}
                     icon={
                         marker.type === 'garage' ? garageIcon :

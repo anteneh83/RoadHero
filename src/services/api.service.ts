@@ -12,6 +12,12 @@ export interface LoginPayload {
     password: string;
 }
 
+export interface TechLoginPayload {
+    phone_number: string;
+    pin: string;
+    device_token?: string;
+}
+
 export interface BusinessOnboardingPayload {
     business_name: string;
     tin_number?: string;
@@ -286,7 +292,7 @@ export interface DeductInventoryPayload {
     quantity: number;
 }
 
-export type JobStatus = 'PENDING' | 'ACCEPTED' | 'EN_ROUTE' | 'ARRIVED' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED';
+export type JobStatus = 'PENDING' | 'ACCEPTED' | 'EN_ROUTE' | 'ARRIVED' | 'DIAGNOSING' | 'QUOTE_ACCEPTED' | 'APPROVED' | 'QUOTE_APPROVED' | 'ACCEPTED_QUOTE' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED';
 
 export interface Job {
     id: number;
@@ -336,7 +342,7 @@ export interface RejectJobPayload {
 }
 
 export interface UpdateStatusPayload {
-    status: 'EN_ROUTE' | 'ARRIVED' | 'IN_PROGRESS';
+    status: 'EN_ROUTE' | 'ARRIVED' | 'DIAGNOSING' | 'IN_PROGRESS';
 }
 
 export interface FinalizeJobPayload {
@@ -362,11 +368,23 @@ export const authService = {
         const response = await api.post('provider/auth/token/refresh', { refresh });
         return response.data;
     },
+    techLogin: async (payload: TechLoginPayload) => {
+        const response = await api.post('provider/auth/tech/login/', payload);
+        return response.data;
+    },
 };
 
 export const onboardingService = {
+    getBusiness: async () => {
+        const response = await api.get('provider/onboarding/business/');
+        return response.data;
+    },
     updateBusiness: async (payload: BusinessOnboardingPayload) => {
-        const response = await api.put('provider/onboarding/business', payload);
+        const response = await api.put('provider/onboarding/business/', payload);
+        return response.data;
+    },
+    getLocation: async () => {
+        const response = await api.get('provider/onboarding/location/');
         return response.data;
     },
     updateLocation: async (payload: LocationOnboardingPayload) => {
@@ -553,6 +571,29 @@ export const jobService = {
         const response = await api.post(`provider/jobs/${id}/messages`, payload);
         return response.data;
     },
+    createQuote: async (id: number, payload: { notes: string; valid_until: string }) => {
+        const response = await api.post(`provider/jobs/${id}/quotes`, payload);
+        return response.data;
+    },
+};
+
+export const quoteService = {
+    get: async (id: number) => {
+        const response = await api.get(`provider/quotes/${id}`);
+        return response.data;
+    },
+    addItem: async (quoteId: number, payload: { item_type: 'PART' | 'LABOR'; description: string; quantity: number; unit_price: number; spare_part_id?: number }) => {
+        const response = await api.post(`provider/quotes/${quoteId}/items`, payload);
+        return response.data;
+    },
+    removeItem: async (quoteId: number, itemId: number) => {
+        const response = await api.delete(`provider/quotes/${quoteId}/items/${itemId}`);
+        return response.data;
+    },
+    submit: async (quoteId: number) => {
+        const response = await api.post(`provider/quotes/${quoteId}/submit`);
+        return response.data;
+    },
 };
 
 export const notificationService = {
@@ -572,7 +613,13 @@ export const notificationService = {
 
 export const utilService = {
     getUploadUrl: async (payload: UploadUrlPayload) => {
-        const response = await api.post('provider/utils/upload-url', payload);
+        const response = await api.post('provider/utils/upload-url/', payload);
+        return response.data;
+    },
+    uploadDirect: async (formData: FormData) => {
+        const response = await api.post('provider/utils/upload/', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
         return response.data;
     },
 };
@@ -618,6 +665,48 @@ export const reviewService = {
     },
     resolve: async (id: number, payload?: { resolution_note?: string }) => {
         const response = await api.patch(`provider/reviews/${id}/resolve`, payload || {});
+        return response.data;
+    },
+};
+
+export const scheduleService = {
+    list: async () => {
+        const response = await api.get('provider/availability/');
+        return response.data;
+    },
+    add: async (payload: { day_of_week: number; open_time: string; close_time: string; is_available: boolean; max_concurrent_jobs: number }) => {
+        const response = await api.post('provider/availability/', payload);
+        return response.data;
+    },
+    remove: async (id: number) => {
+        const response = await api.delete(`provider/availability/${id}/`);
+        return response.data;
+    },
+    listUnavailable: async () => {
+        const response = await api.get('provider/availability/unavailable/');
+        return response.data;
+    },
+    addUnavailable: async (payload: { date: string; reason: string }) => {
+        const response = await api.post('provider/availability/unavailable/', payload);
+        return response.data;
+    },
+    removeUnavailable: async (id: number) => {
+        const response = await api.delete(`provider/availability/unavailable/${id}/`);
+        return response.data;
+    },
+};
+
+export const analyticsService = {
+    getRevenue: async (params?: { days?: number }) => {
+        const response = await api.get('provider/analytics/revenue/', { params });
+        return response.data;
+    },
+    getTopParts: async (params?: { limit?: number }) => {
+        const response = await api.get('provider/analytics/top-parts/', { params });
+        return response.data;
+    },
+    getTechnicianPerformance: async () => {
+        const response = await api.get('provider/analytics/technicians/');
         return response.data;
     },
 };

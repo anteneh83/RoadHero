@@ -43,6 +43,7 @@ const menuItems = [
     { key: 'messages', icon: MessageSquare, href: '/provider/messages' },
     { key: 'history', icon: BookOpen, href: '/provider/history' },
     { key: 'reviews', icon: Star, href: '/provider/reviews' },
+    { key: 'operations', icon: Zap, href: '/provider/operations' },
     { key: 'settings', icon: Settings, href: '/provider/settings' },
     { key: 'help', icon: Globe, href: '/provider/help' },
 ];

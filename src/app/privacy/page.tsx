@@ -64,6 +64,7 @@ export default function PrivacyPolicyPage() {
                                     <li key={i} className="flex gap-4 group">
                                         <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-accent shrink-0 group-hover:scale-150 transition-transform" />
                                         <span className="text-gray-500 dark:text-gray-400 font-medium leading-tight">{item}</span>
+                                        
                                     </li>
                                 ))}
                             </ul>

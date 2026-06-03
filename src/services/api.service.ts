@@ -304,10 +304,12 @@ export interface DeductInventoryPayload {
 }
 
 export type JobStatus = 'PENDING' | 'ACCEPTED' | 'EN_ROUTE' | 'ARRIVED' | 'DIAGNOSING' | 'QUOTE_PENDING' | 'QUOTE_ACCEPTED' | 'APPROVED' | 'QUOTE_APPROVED' | 'ACCEPTED_QUOTE' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED';
+export type JobType = 'EMERGENCY' | 'SCHEDULED';
 
 export interface Job {
     id: number;
     status: JobStatus;
+    job_type?: JobType;
     customer_name: string;
     customer_phone?: string;
     customer_lat: number;
@@ -318,6 +320,7 @@ export interface Job {
     distance?: string;
     created_at: string;
     accepted_at?: string;
+    scheduled_time?: string;
     technician_id?: number;
     technician_name?: string;
     eta_minutes?: number;
@@ -353,7 +356,7 @@ export interface RejectJobPayload {
 }
 
 export interface UpdateStatusPayload {
-    status: 'EN_ROUTE' | 'ARRIVED' | 'DIAGNOSING' | 'IN_PROGRESS';
+    status: 'EN_ROUTE' | 'ARRIVED' | 'DIAGNOSING' | 'IN_PROGRESS' | 'COMPLETED';
 }
 
 export interface FinalizeJobPayload {
@@ -361,6 +364,41 @@ export interface FinalizeJobPayload {
     payment_method: string;
     internal_notes?: string;
     notes?: string;
+}
+
+export function isScheduledTimeReached(scheduledTime?: string): boolean {
+    if (!scheduledTime) return true;
+    const scheduledDate = new Date(scheduledTime);
+    return new Date() >= scheduledDate;
+}
+
+export function getTimeUntilScheduled(scheduledTime?: string) {
+    if (!scheduledTime) return null;
+    const scheduledDate = new Date(scheduledTime);
+    const now = new Date();
+    if (now >= scheduledDate) return null;
+    const diffMs = scheduledDate.getTime() - now.getTime();
+    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diffMs / (1000 * 60 * 60)) % 24);
+    const minutes = Math.floor((diffMs / (1000 * 60)) % 60);
+    const seconds = Math.floor((diffMs / 1000) % 60);
+    const formattedString = days > 0 ? `${days}d ${hours}h ${minutes}m` : hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m ${seconds}s`;
+    return { days, hours, minutes, seconds, totalMinutes: Math.floor(diffMs / (1000 * 60)), formattedString };
+}
+
+export function formatScheduledTime(scheduledTime?: string): string {
+    if (!scheduledTime) return '';
+    try {
+        return new Intl.DateTimeFormat('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+        }).format(new Date(scheduledTime));
+    } catch (_e) {
+        return scheduledTime;
+    }
 }
 
 export const authService = {

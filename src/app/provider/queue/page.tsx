@@ -17,12 +17,14 @@ import {
     Check,
     X,
     User,
-    Calendar
+    Phone,
+    Calendar,
+    AlertTriangle
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { jobService, technicianService, Job, Technician } from '@/services/api.service';
+import { jobService, technicianService, Job, Technician, isScheduledTimeReached, getTimeUntilScheduled, formatScheduledTime } from '@/services/api.service';
 import { useLanguage } from '@/hooks/useLanguage';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import dynamic from 'next/dynamic';
@@ -50,6 +52,17 @@ export default function RequestQueuePage() {
     // Accept Modal State
     const [isAcceptModalOpen, setIsAcceptModalOpen] = useState(false);
     const [selectedTechId, setSelectedTechId] = useState<number | string>('');
+
+    const normalizeJob = (job: any): Job => ({
+        ...job,
+        job_type: job.job_type || (job.scheduled_time || job.schedule_time || job.scheduled_at || job.appointment_time ? 'SCHEDULED' : 'EMERGENCY'),
+        scheduled_time: job.scheduled_time || job.schedule_time || job.scheduled_at || job.appointment_time || undefined,
+        customer_name: job.customer_name || job.driver_name || 'Unknown',
+        customer_phone: job.customer_phone || job.driver_phone,
+        customer_lat: Number(job.customer_lat || job.latitude || job.lat || job.driver_lat || job.location_lat || 9.0049),
+        customer_lng: Number(job.customer_lng || job.longitude || job.lng || job.driver_lng || job.location_lng || 38.7670),
+        distance: job.distance || job.address || 'Location provided'
+    });
     const [eta, setEta] = useState('15');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -76,23 +89,8 @@ export default function RequestQueuePage() {
             const rawSched = Array.isArray(schedRes.data) ? schedRes.data : (schedRes.data?.results || schedRes.results || (Array.isArray(schedRes) ? schedRes : []));
 
             // Map the API response fields to what the UI expects (e.g., driver_name -> customer_name)
-            const jobsData = rawJobs.map((job: any) => ({
-                ...job,
-                customer_name: job.customer_name || job.driver_name || 'Unknown',
-                customer_phone: job.customer_phone || job.driver_phone,
-                customer_lat: Number(job.customer_lat || job.latitude || job.lat || job.driver_lat || job.location_lat || 9.0049),
-                customer_lng: Number(job.customer_lng || job.longitude || job.lng || job.driver_lng || job.location_lng || 38.7670),
-                distance: job.distance || job.address || 'Location provided'
-            }));
-
-            const schedData = rawSched.map((job: any) => ({
-                ...job,
-                customer_name: job.customer_name || job.driver_name || 'Unknown',
-                customer_phone: job.customer_phone || job.driver_phone,
-                customer_lat: Number(job.customer_lat || job.latitude || job.lat || job.driver_lat || job.location_lat || 9.0049),
-                customer_lng: Number(job.customer_lng || job.longitude || job.lng || job.driver_lng || job.location_lng || 38.7670),
-                distance: job.distance || job.address || 'Location provided'
-            }));
+            const jobsData = rawJobs.map((job: any) => normalizeJob(job));
+            const schedData = rawSched.map((job: any) => normalizeJob(job));
 
             setJobs(jobsData);
             setScheduledJobs(schedData);
@@ -118,6 +116,9 @@ export default function RequestQueuePage() {
         if (!selectedJobId || !selectedTechId) return;
         setIsSubmitting(true);
         try {
+            const currentJob = jobs.find(j => j.id === selectedJobId) || scheduledJobs.find(j => j.id === selectedJobId);
+            const isScheduled = Boolean(currentJob?.scheduled_time);
+
             // Auto-activate offline technicians before accepting, because the backend backend rejects offline ones with "technician not found"
             const tech = technicians.find(t => t.id.toString() === selectedTechId.toString());
             if (tech && !tech.is_active) {
@@ -138,16 +139,77 @@ export default function RequestQueuePage() {
                 technician: parseInt(selectedTechId.toString()),
                 eta_minutes: parseInt(eta)
             });
+            setIsAcceptModalOpen(false);
+            setSelectedTechId('');
+            setEta('15');
+            await fetchData();
             window.dispatchEvent(new CustomEvent('show-toast', {
-                detail: { message: "Job accepted! Redirecting to tracker...", type: 'success' }
+                detail: {
+                    message: isScheduled
+                        ? "Scheduled job accepted. Work will start when the scheduled time is reached."
+                        : "Job accepted! Redirecting to tracker...",
+                    type: 'success'
+                }
             }));
-            setTimeout(() => {
-                router.push('/provider/tracker');
-            }, 1000);
+
+            if (!isScheduled) {
+                setTimeout(() => {
+                    router.push('/provider/tracker');
+                }, 1000);
+            }
         } catch (error: any) {
             console.error("[Job Queue] Accept Error:", error);
             window.dispatchEvent(new CustomEvent('show-toast', {
                 detail: { message: error.response?.data?.message || "Failed to accept job", type: 'error' }
+            }));
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleStartScheduledJob = async () => {
+        if (!selectedJobId || !selectedJob?.scheduled_time) return;
+        if (!isScheduledTimeReached(selectedJob.scheduled_time)) {
+            const remaining = getTimeUntilScheduled(selectedJob.scheduled_time);
+            window.dispatchEvent(new CustomEvent('show-toast', {
+                detail: {
+                    message: `Cannot start work yet. Scheduled to begin in ${remaining?.formattedString || 'the future'}.`,
+                    type: 'warning'
+                }
+            }));
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            await jobService.updateStatus(selectedJobId, { status: 'IN_PROGRESS' });
+            await fetchData();
+            window.dispatchEvent(new CustomEvent('show-toast', {
+                detail: { message: 'Scheduled work started. Status updated to In Progress.', type: 'success' }
+            }));
+        } catch (error: any) {
+            console.error("[Job Queue] Start Scheduled Job Error:", error);
+            window.dispatchEvent(new CustomEvent('show-toast', {
+                detail: { message: error.response?.data?.message || "Failed to start scheduled work", type: 'error' }
+            }));
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleCompleteScheduledJob = async () => {
+        if (!selectedJobId) return;
+        setIsSubmitting(true);
+        try {
+            await jobService.updateStatus(selectedJobId, { status: 'COMPLETED' });
+            await fetchData();
+            window.dispatchEvent(new CustomEvent('show-toast', {
+                detail: { message: 'Scheduled job marked complete.', type: 'success' }
+            }));
+        } catch (error: any) {
+            console.error("[Job Queue] Complete Scheduled Job Error:", error);
+            window.dispatchEvent(new CustomEvent('show-toast', {
+                detail: { message: error.response?.data?.message || "Failed to complete scheduled job", type: 'error' }
             }));
         } finally {
             setIsSubmitting(false);
@@ -188,6 +250,7 @@ export default function RequestQueuePage() {
     });
 
     const selectedJob = currentJobList.find(j => j.id === selectedJobId);
+    const isScheduledJob = Boolean(selectedJob?.scheduled_time || selectedJob?.job_type === 'SCHEDULED');
 
     return (
         <div className="flex flex-col min-h-screen">
@@ -312,80 +375,180 @@ export default function RequestQueuePage() {
                     <div className="flex-1 bg-white/70 dark:bg-white/5 backdrop-blur-md rounded-[48px] border border-white/40 dark:border-white/5 shadow-2xl shadow-black/5 p-4 flex flex-col min-h-[600px] hover:shadow-primary/5 transition-all duration-700">
                         {selectedJob ? (
                             <>
-                                <div className="flex-1 relative bg-gray-50 dark:bg-black/20 rounded-[40px] overflow-hidden mb-8 border border-gray-100 dark:border-white/5 shadow-inner group">
-                                    <InteractiveMap
-                                        center={[selectedJob.customer_lat, selectedJob.customer_lng]}
-                                        zoom={14}
-                                        markers={[
-                                            { position: garageLocation, type: 'garage', label: 'Garage' },
-                                            { position: [selectedJob.customer_lat, selectedJob.customer_lng], type: 'customer', label: selectedJob.customer_name }
-                                        ]}
-                                        polyline={[garageLocation, [selectedJob.customer_lat, selectedJob.customer_lng]]}
-                                    />
-                                    <div className="absolute top-6 left-6 z-10">
-                                        <div className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm px-4 py-2 rounded-2xl border border-white dark:border-white/10 shadow-xl flex items-center gap-3">
-                                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                                            <span className="text-[9px] font-black text-gray-900 dark:text-white uppercase tracking-[0.2em]">{t('gps_tracking')}</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Customer Detail */}
-                                <div className="px-8 pb-8 space-y-8">
-                                    <div className="flex justify-between items-center">
-                                        <div className="flex items-center gap-5">
-                                            <div className="w-16 h-16 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/10 flex items-center justify-center font-black text-primary dark:text-white text-xl shadow-inner group-hover:scale-105 transition-transform duration-500 uppercase">
-                                                {selectedJob.customer_name.charAt(0)}
+                                {isScheduledJob ? (
+                                    <div className="flex-1 px-6 py-8 space-y-8">
+                                        <div className="flex flex-col gap-5 rounded-[40px] bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/10 p-8 shadow-inner">
+                                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                                                <div>
+                                                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400 dark:text-gray-500">Scheduled Appointment</p>
+                                                    <h3 className="text-2xl font-black text-gray-900 dark:text-white mt-2">{selectedJob.service_type}</h3>
+                                                </div>
+                                                <span className={cn(
+                                                    "text-[10px] font-black uppercase tracking-[0.25em] px-4 py-2 rounded-2xl",
+                                                    selectedJob.status === 'ACCEPTED' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/10 dark:text-yellow-200' : selectedJob.status === 'IN_PROGRESS' ? 'bg-green-100 text-green-800 dark:bg-green-500/10 dark:text-green-200' : 'bg-gray-100 text-gray-600 dark:bg-white/5 dark:text-gray-300'
+                                                )}>
+                                                    {selectedJob.status?.replace(/_/g, ' ')}
+                                                </span>
                                             </div>
-                                            <div>
-                                                <div className="flex items-center gap-3 mb-1.5">
-                                                    <h4 className="text-xl font-black text-gray-900 dark:text-white leading-none transition-colors">{selectedJob.customer_name}</h4>
-                                                    <div className="bg-orange-50 dark:bg-orange-500/10 px-2 py-0.5 rounded-lg border border-orange-100 dark:border-orange-500/20 flex items-center gap-1 transition-colors">
-                                                        <Star size={10} className="text-accent fill-accent" />
-                                                        <span className="text-[9px] font-black text-orange-600 dark:text-orange-400">4.9</span>
+
+                                            <div className="grid gap-4 sm:grid-cols-2">
+                                                <div className="rounded-3xl bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 p-5">
+                                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 dark:text-gray-500">Customer</p>
+                                                    <p className="mt-2 text-sm font-black text-gray-900 dark:text-white">{selectedJob.customer_name}</p>
+                                                    <div className="flex items-center gap-2 mt-2 text-[11px] text-gray-500 dark:text-gray-400">
+                                                        <Phone size={14} />
+                                                        <span>{selectedJob.customer_phone || 'No phone available'}</span>
                                                     </div>
                                                 </div>
-                                                <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.15em] flex items-center gap-2">
-                                                    <MapPin size={10} />
-                                                    Near your location
-                                                </p>
+
+                                                <div className="rounded-3xl bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 p-5">
+                                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 dark:text-gray-500">Schedule</p>
+                                                    <p className="mt-2 text-sm font-black text-gray-900 dark:text-white">{formatScheduledTime(selectedJob.scheduled_time)}</p>
+                                                    {selectedJob.scheduled_time && !isScheduledTimeReached(selectedJob.scheduled_time) ? (
+                                                        <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.2em] text-orange-600 dark:text-orange-300">
+                                                            Starts in {getTimeUntilScheduled(selectedJob.scheduled_time)?.formattedString}
+                                                        </p>
+                                                    ) : selectedJob.scheduled_time ? (
+                                                        <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.2em] text-green-600 dark:text-green-300">
+                                                            Ready to start now
+                                                        </p>
+                                                    ) : null}
+                                                </div>
+                                            </div>
+
+                                            <div className="rounded-3xl bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 p-6">
+                                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 dark:text-gray-500">Details</p>
+                                                <p className="mt-4 text-sm font-medium text-gray-700 dark:text-gray-300 leading-relaxed">{selectedJob.description || 'No additional details provided.'}</p>
                                             </div>
                                         </div>
-                                        <div className="flex gap-3">
-                                            <button className="p-4 bg-gray-50/50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/10 text-primary dark:text-white hover:bg-primary hover:text-white dark:hover:bg-accent hover:shadow-xl hover:shadow-primary/20 transition-all duration-300 group">
-                                                <Bell size={18} className="group-hover:rotate-12" />
+
+                                        <div className="space-y-3">
+                                            {selectedJob.status === 'ACCEPTED' && !isScheduledTimeReached(selectedJob.scheduled_time) && (
+                                                <div className="rounded-[32px] bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/20 p-6">
+                                                    <div className="flex items-center gap-3">
+                                                        <AlertTriangle size={20} className="text-orange-600 dark:text-orange-400" />
+                                                        <div>
+                                                            <p className="text-sm font-black text-orange-900 dark:text-orange-100">Work cannot start yet</p>
+                                                            <p className="text-[11px] font-bold text-orange-700 dark:text-orange-200">Scheduled start time has not been reached.</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {selectedJob.status === 'ACCEPTED' && isScheduledTimeReached(selectedJob.scheduled_time) && (
+                                                <button
+                                                    onClick={handleStartScheduledJob}
+                                                    disabled={isSubmitting}
+                                                    className="w-full py-4 rounded-2xl bg-accent text-white text-sm font-black uppercase tracking-[0.2em] shadow-xl shadow-accent/20 hover:bg-orange-600 active:scale-95 transition-all disabled:opacity-50"
+                                                >
+                                                    {isSubmitting ? 'Starting...' : 'Start Scheduled Work'}
+                                                </button>
+                                            )}
+                                            {selectedJob.status === 'IN_PROGRESS' && (
+                                                <button
+                                                    onClick={handleCompleteScheduledJob}
+                                                    disabled={isSubmitting}
+                                                    className="w-full py-4 rounded-2xl bg-green-600 text-white text-sm font-black uppercase tracking-[0.2em] shadow-xl shadow-green-900/20 hover:bg-green-700 active:scale-95 transition-all disabled:opacity-50"
+                                                >
+                                                    {isSubmitting ? 'Completing...' : 'Mark Completed'}
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        <div className="flex gap-5">
+                                            <button
+                                                onClick={() => setIsRejectModalOpen(true)}
+                                                className="flex-1 h-16 rounded-2xl border-2 border-gray-100 dark:border-white/5 text-[10px] font-black text-gray-400 dark:text-gray-600 uppercase tracking-[0.2em] hover:bg-gray-50 dark:hover:bg-white/5 hover:text-red-500 hover:border-red-100 transition-all duration-300"
+                                            >
+                                                {t('decline')}
                                             </button>
-                                            <button className="p-4 bg-gray-50/50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/10 text-primary dark:text-white hover:bg-primary hover:text-white dark:hover:bg-accent hover:shadow-xl hover:shadow-primary/20 transition-all duration-300 group">
-                                                <MoreHorizontal size={18} />
+                                            <button
+                                                onClick={() => setIsAcceptModalOpen(true)}
+                                                disabled={selectedJob.status !== 'PENDING'}
+                                                className="flex-[2.5] h-16 rounded-2xl bg-accent text-white text-[11px] font-black uppercase tracking-[0.2em] shadow-2xl shadow-orange-950/20 hover:bg-orange-600 hover:shadow-orange-950/30 hover:-translate-y-1 active:scale-95 transition-all duration-300 flex items-center justify-center gap-3 disabled:opacity-50"
+                                            >
+                                                {selectedJob.status === 'PENDING' ? 'Accept Job' : 'Reassign Technician'}
+                                                <ChevronRight size={18} />
                                             </button>
                                         </div>
                                     </div>
-
-                                    <div className="bg-primary/5 dark:bg-primary/10 p-6 rounded-[32px] border border-primary/10 dark:border-primary/20 relative overflow-hidden group">
-                                        <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform duration-700">
-                                            <Navigation size={64} className="text-primary dark:text-accent rotate-45" />
+                                ) : (
+                                    <>
+                                        <div className="flex-1 relative bg-gray-50 dark:bg-black/20 rounded-[40px] overflow-hidden mb-8 border border-gray-100 dark:border-white/5 shadow-inner group">
+                                            <InteractiveMap
+                                                center={[selectedJob.customer_lat, selectedJob.customer_lng]}
+                                                zoom={14}
+                                                markers={[
+                                                    { position: garageLocation, type: 'garage', label: 'Garage' },
+                                                    { position: [selectedJob.customer_lat, selectedJob.customer_lng], type: 'customer', label: selectedJob.customer_name }
+                                                ]}
+                                                polyline={[garageLocation, [selectedJob.customer_lat, selectedJob.customer_lng]]}
+                                            />
+                                            <div className="absolute top-6 left-6 z-10">
+                                                <div className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm px-4 py-2 rounded-2xl border border-white dark:border-white/10 shadow-xl flex items-center gap-3">
+                                                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                                    <span className="text-[9px] font-black text-gray-900 dark:text-white uppercase tracking-[0.2em]">{t('gps_tracking')}</span>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300 italic leading-relaxed relative z-10 transition-colors">
-                                            “{selectedJob.description || 'No additional details provided.'}”
-                                        </p>
-                                    </div>
 
-                                    <div className="flex gap-5">
-                                        <button
-                                            onClick={() => setIsRejectModalOpen(true)}
-                                            className="flex-1 h-16 rounded-2xl border-2 border-gray-100 dark:border-white/5 text-[10px] font-black text-gray-400 dark:text-gray-600 uppercase tracking-[0.2em] hover:bg-gray-50 dark:hover:bg-white/5 hover:text-red-500 hover:border-red-100 transition-all duration-300"
-                                        >
-                                            {t('decline')}
-                                        </button>
-                                        <button
-                                            onClick={() => setIsAcceptModalOpen(true)}
-                                            className="flex-[2.5] h-16 rounded-2xl bg-accent text-white text-[11px] font-black uppercase tracking-[0.2em] shadow-2xl shadow-orange-950/20 hover:bg-orange-600 hover:shadow-orange-950/30 hover:-translate-y-1 active:scale-95 transition-all duration-300 flex items-center justify-center gap-3"
-                                        >
-                                            {t('accept_request')}
-                                            <ChevronRight size={18} />
-                                        </button>
-                                    </div>
-                                </div>
+                                        {/* Customer Detail */}
+                                        <div className="px-8 pb-8 space-y-8">
+                                            <div className="flex justify-between items-center">
+                                                <div className="flex items-center gap-5">
+                                                    <div className="w-16 h-16 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/10 flex items-center justify-center font-black text-primary dark:text-white text-xl shadow-inner group-hover:scale-105 transition-transform duration-500 uppercase">
+                                                        {selectedJob.customer_name.charAt(0)}
+                                                    </div>
+                                                    <div>
+                                                        <div className="flex items-center gap-3 mb-1.5">
+                                                            <h4 className="text-xl font-black text-gray-900 dark:text-white leading-none transition-colors">{selectedJob.customer_name}</h4>
+                                                            <div className="bg-orange-50 dark:bg-orange-500/10 px-2 py-0.5 rounded-lg border border-orange-100 dark:border-orange-500/20 flex items-center gap-1 transition-colors">
+                                                                <Star size={10} className="text-accent fill-accent" />
+                                                                <span className="text-[9px] font-black text-orange-600 dark:text-orange-400">4.9</span>
+                                                            </div>
+                                                        </div>
+                                                        <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.15em] flex items-center gap-2">
+                                                            <MapPin size={10} />
+                                                            Near your location
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex gap-3">
+                                                    <button className="p-4 bg-gray-50/50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/10 text-primary dark:text-white hover:bg-primary hover:text-white dark:hover:bg-accent hover:shadow-xl hover:shadow-primary/20 transition-all duration-300 group">
+                                                        <Bell size={18} className="group-hover:rotate-12" />
+                                                    </button>
+                                                    <button className="p-4 bg-gray-50/50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/10 text-primary dark:text-white hover:bg-primary hover:text-white dark:hover:bg-accent hover:shadow-xl hover:shadow-primary/20 transition-all duration-300 group">
+                                                        <MoreHorizontal size={18} />
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-primary/5 dark:bg-primary/10 p-6 rounded-[32px] border border-primary/10 dark:border-primary/20 relative overflow-hidden group">
+                                                <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform duration-700">
+                                                    <Navigation size={64} className="text-primary dark:text-accent rotate-45" />
+                                                </div>
+                                                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 italic leading-relaxed relative z-10 transition-colors">
+                                                    “{selectedJob.description || 'No additional details provided.'}”
+                                                </p>
+                                            </div>
+
+                                            <div className="flex gap-5">
+                                                <button
+                                                    onClick={() => setIsRejectModalOpen(true)}
+                                                    className="flex-1 h-16 rounded-2xl border-2 border-gray-100 dark:border-white/5 text-[10px] font-black text-gray-400 dark:text-gray-600 uppercase tracking-[0.2em] hover:bg-gray-50 dark:hover:bg-white/5 hover:text-red-500 hover:border-red-100 transition-all duration-300"
+                                                >
+                                                    {t('decline')}
+                                                </button>
+                                                <button
+                                                    onClick={() => setIsAcceptModalOpen(true)}
+                                                    className="flex-[2.5] h-16 rounded-2xl bg-accent text-white text-[11px] font-black uppercase tracking-[0.2em] shadow-2xl shadow-orange-950/20 hover:bg-orange-600 hover:shadow-orange-950/30 hover:-translate-y-1 active:scale-95 transition-all duration-300 flex items-center justify-center gap-3"
+                                                >
+                                                    {t('accept_request')}
+                                                    <ChevronRight size={18} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
                             </>
                         ) : (
                             <div className="flex-1 flex flex-col items-center justify-center text-center p-10 gap-4 opacity-50">

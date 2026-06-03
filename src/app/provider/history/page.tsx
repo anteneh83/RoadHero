@@ -12,6 +12,8 @@ import {
     Bell
 } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
+import { useEffect } from 'react';
+import { providerService } from '@/services/api.service';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -20,21 +22,50 @@ function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
 }
 
-const historyData = [
-    { id: '#RH-8921', date: 'Oct 24, 14:20', customer: 'Yohannes Kassa', service: 'Fuel Delivery', amount: '1,250.00', status: 'SUCCESS' },
-    { id: '#RH-8918', date: 'Oct 24, 11:05', customer: 'Sara Belay', service: 'Flat Tire', amount: '800.00', status: 'CANCELLED' },
-    { id: '#RH-8915', date: 'Oct 23, 18:45', customer: 'Abebe Desta', service: 'Towing', amount: '4,500.00', status: 'SUCCESS' },
-    { id: '#RH-8912', date: 'Oct 23, 10:15', customer: 'Markos T.', service: 'Engine Check', amount: '1,800.00', status: 'SUCCESS' },
-];
+const historyData: any[] = [];
 
 export default function JobHistoryPage() {
     const { t } = useLanguage();
     const [searchQuery, setSearchQuery] = useState('');
+    const [loading, setLoading] = useState(true);
+    const [records, setRecords] = useState<any[]>(historyData);
 
-    const filteredHistory = historyData.filter(item =>
-        item.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.service.toLowerCase().includes(searchQuery.toLowerCase())
+    useEffect(() => {
+        let mounted = true;
+        const fetchHistory = async () => {
+            setLoading(true);
+            try {
+                const res: any = await providerService.getHistory();
+                const data = res.data ?? res;
+                if (!mounted) return;
+
+                // Normalize expected fields for the table
+                const normalized = (Array.isArray(data) ? data : []).map((r: any) => ({
+                    id: r.reference || r.id || `#RH-${r.id}`,
+                    date: r.completed_at || r.date || r.created_at || r.updated_at || '',
+                    customer: r.customer_name || r.customer?.name || r.user_name || r.customer || 'Customer',
+                    service: r.service_type || r.service_name || r.service || '',
+                    amount: (r.total_amount_collected ?? r.amount ?? r.fee ?? 0).toString(),
+                    status: (r.status || r.state || '').toString().toUpperCase(),
+                }));
+
+                setRecords(normalized);
+            } catch (err) {
+                console.error('Failed to load history', err);
+                window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Failed to load history', type: 'error' } }));
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchHistory();
+        return () => { mounted = false; };
+    }, []);
+
+    const filteredHistory = (records || []).filter(item =>
+        item.id?.toString().toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.customer?.toString().toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.service?.toString().toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     const handleExport = () => {
@@ -96,28 +127,38 @@ export default function JobHistoryPage() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50 dark:divide-white/5">
-                            {filteredHistory.map((item, i) => (
-                                <tr key={i} className="hover:bg-primary/5 dark:hover:bg-white/5 transition-colors group cursor-pointer even:bg-gray-50/20 dark:even:bg-white/[0.02]">
-                                    <td className="px-8 py-5 text-xs font-black text-primary dark:text-accent group-hover:underline underline-offset-4">{item.id}</td>
-                                    <td className="px-8 py-5 text-xs font-bold text-gray-400 dark:text-gray-500 transition-colors">{item.date}</td>
-                                    <td className="px-8 py-5 text-xs font-black text-gray-900 dark:text-white transition-colors">{item.customer}</td>
-                                    <td className="px-8 py-5 text-xs font-bold text-gray-600 dark:text-gray-400 transition-colors">{item.service}</td>
-                                    <td className="px-8 py-5 text-xs font-black text-gray-900 dark:text-white transition-colors">{item.amount}</td>
-                                    <td className="px-8 py-5">
-                                        <span className={cn(
-                                            "px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest transition-all",
-                                            item.status === 'SUCCESS' ? "bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-400" : "bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400"
-                                        )}>
-                                            {t(item.status.toLowerCase())}
-                                        </span>
-                                    </td>
-                                    <td className="px-8 py-5 text-right">
-                                        <button className="p-1.5 text-primary dark:text-accent hover:bg-primary/10 dark:hover:bg-accent/10 rounded-lg transition-all">
-                                            <Download size={14} />
-                                        </button>
-                                    </td>
+                            {loading ? (
+                                <tr>
+                                    <td colSpan={7} className="px-8 py-10 text-center text-sm font-black text-gray-400">Loading...</td>
                                 </tr>
-                            ))}
+                            ) : filteredHistory.length === 0 ? (
+                                <tr>
+                                    <td colSpan={7} className="px-8 py-10 text-center text-sm font-black text-gray-400">No history records found.</td>
+                                </tr>
+                            ) : (
+                                filteredHistory.map((item, i) => (
+                                    <tr key={i} className="hover:bg-primary/5 dark:hover:bg-white/5 transition-colors group cursor-pointer even:bg-gray-50/20 dark:even:bg-white/[0.02]">
+                                        <td className="px-8 py-5 text-xs font-black text-primary dark:text-accent group-hover:underline underline-offset-4">{item.id}</td>
+                                        <td className="px-8 py-5 text-xs font-bold text-gray-400 dark:text-gray-500 transition-colors">{item.date}</td>
+                                        <td className="px-8 py-5 text-xs font-black text-gray-900 dark:text-white transition-colors">{item.customer}</td>
+                                        <td className="px-8 py-5 text-xs font-bold text-gray-600 dark:text-gray-400 transition-colors">{item.service}</td>
+                                        <td className="px-8 py-5 text-xs font-black text-gray-900 dark:text-white transition-colors">{item.amount}</td>
+                                        <td className="px-8 py-5">
+                                            <span className={cn(
+                                                "px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest transition-all",
+                                                (item.status === 'COMPLETED' || item.status === 'SUCCESS') ? "bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-400" : "bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400"
+                                            )}>
+                                                {t(item.status.toLowerCase())}
+                                            </span>
+                                        </td>
+                                        <td className="px-8 py-5 text-right">
+                                            <button className="p-1.5 text-primary dark:text-accent hover:bg-primary/10 dark:hover:bg-accent/10 rounded-lg transition-all">
+                                                <Download size={14} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
                         </tbody>
                     </table>
 

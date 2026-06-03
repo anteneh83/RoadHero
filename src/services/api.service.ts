@@ -20,32 +20,43 @@ export interface TechLoginPayload {
 
 export interface BusinessOnboardingPayload {
     business_name: string;
-    tin_number?: string;
-    service_categories: string[];
+    business_type: string;
+    phone_number: string;
+    email?: string;
+    description?: string;
 }
 
 export interface LocationOnboardingPayload {
-    lat: number;
-    lng: number;
-    search_area?: string;
-    specific_instructions?: string;
+    latitude: number;
+    longitude: number;
+    address: string;
+    operating_hours?: string;
 }
 
 export interface VerificationPayload {
     business_license_url: string;
-    tin_certificate_url?: string;
-    owner_id_front_url?: string;
+    id_document_url: string;
 }
 
 export interface DashboardMetrics {
+    // Today's stats
     today_jobs: number;
-    total_revenue_today: number;
-    active_technicians: number;
-    pending_requests: number;
+    today_revenue: number;
+    pending_actions: number;
+    // Active jobs
+    active_jobs: number;
+    active_technicians?: number;
     avg_rating: number;
-    total_jobs_this_month: number;
+    avg_response_time_mins?: number;
+    total_jobs_this_month?: number;
+    total_revenue_today?: number;
+    // Subscription
     subscription_status: string;
     subscription_days_remaining: number;
+    // Recent activity feed
+    recent_activity_feed?: Array<{ type?: string, label?: string, details?: string, color?: string, timestamp?: string }>;
+    // Legacy / extended fields kept for backward compatibility
+    pending_requests?: number;
     revenue_data?: Array<{ day?: string, date?: string, amount?: number, total?: number }>;
     technician_data?: Array<{ name?: string, jobs?: number, rating?: number }>;
     category_data?: Array<{ name?: string, count?: number, color?: string }>;
@@ -292,7 +303,7 @@ export interface DeductInventoryPayload {
     quantity: number;
 }
 
-export type JobStatus = 'PENDING' | 'ACCEPTED' | 'EN_ROUTE' | 'ARRIVED' | 'DIAGNOSING' | 'QUOTE_ACCEPTED' | 'APPROVED' | 'QUOTE_APPROVED' | 'ACCEPTED_QUOTE' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED';
+export type JobStatus = 'PENDING' | 'ACCEPTED' | 'EN_ROUTE' | 'ARRIVED' | 'DIAGNOSING' | 'QUOTE_PENDING' | 'QUOTE_ACCEPTED' | 'APPROVED' | 'QUOTE_APPROVED' | 'ACCEPTED_QUOTE' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED';
 
 export interface Job {
     id: number;
@@ -349,6 +360,7 @@ export interface FinalizeJobPayload {
     total_amount_collected: number;
     payment_method: string;
     internal_notes?: string;
+    notes?: string;
 }
 
 export const authService = {
@@ -376,19 +388,19 @@ export const authService = {
 
 export const onboardingService = {
     getBusiness: async () => {
-        const response = await api.get('provider/onboarding/business/');
+        const response = await api.get('provider/onboarding/business');
         return response.data;
     },
-    updateBusiness: async (payload: BusinessOnboardingPayload) => {
-        const response = await api.put('provider/onboarding/business/', payload);
+    saveBusiness: async (payload: BusinessOnboardingPayload) => {
+        const response = await api.post('provider/onboarding/business', payload);
         return response.data;
     },
     getLocation: async () => {
-        const response = await api.get('provider/onboarding/location/');
+        const response = await api.get('provider/onboarding/location');
         return response.data;
     },
-    updateLocation: async (payload: LocationOnboardingPayload) => {
-        const response = await api.put('provider/onboarding/location', payload);
+    saveLocation: async (payload: LocationOnboardingPayload) => {
+        const response = await api.post('provider/onboarding/location', payload);
         return response.data;
     },
     submitVerification: async (payload: VerificationPayload) => {
@@ -400,7 +412,36 @@ export const onboardingService = {
 export const providerService = {
     getDashboardMetrics: async () => {
         const response = await api.get('provider/dashboard/metrics');
-        return response.data;
+        const raw = response.data?.data ?? response.data;
+
+        // Normalize backend field names to DashboardMetrics interface
+        const normalized: DashboardMetrics = {
+            today_jobs: raw.jobs_today ?? raw.today_jobs ?? 0,
+            today_revenue: raw.logged_income_today ?? raw.today_revenue ?? 0,
+            pending_actions: raw.pending_jobs ?? raw.pending_requests ?? 0,
+            active_jobs: raw.active_jobs ?? 0,
+            avg_rating: raw.rating_avg ?? raw.avg_rating ?? 0,
+            subscription_status: raw.subscription_status ?? '',
+            subscription_days_remaining: raw.subscription_days_remaining ?? 0,
+            total_jobs_this_month: raw.jobs_this_month ?? raw.total_jobs_this_month ?? 0,
+            total_revenue_today: raw.logged_income_today ?? raw.total_logged_income ?? raw.today_revenue ?? 0,
+            pending_requests: raw.pending_jobs ?? raw.pending_requests ?? 0,
+            active_technicians: raw.active_technicians ?? 0,
+            avg_response_time_mins: raw.avg_response_time_mins ?? 0,
+            recent_activity: raw.recent_activity ?? raw.recent_activity_feed ?? raw.activity ?? [],
+            revenue_data: raw.revenue_trend?.map((r: any) => ({ date: r.date, amount: r.amount })) ?? raw.revenue_data ?? [],
+            category_data: raw.category_data ?? raw.service_mix ?? [],
+            technician_data: raw.technician_data ?? raw.technicians ?? [],
+            recent_activity_feed: raw.recent_activity ?? raw.recent_activity_feed ?? [],
+        };
+
+        return { status: response.data?.status ?? 'success', data: normalized };
+    },
+    getHistory: async (params?: { page?: number; page_size?: number }) => {
+        const response = await api.get('provider/dashboard/history', { params });
+        // The API returns an envelope { status, data: [...] }
+        const raw = response.data?.data ?? response.data;
+        return { status: response.data?.status ?? 'success', data: raw };
     },
     getProfile: async () => {
         const response = await api.get('provider/profile/settings');

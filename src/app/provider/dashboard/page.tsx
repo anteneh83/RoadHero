@@ -79,18 +79,28 @@ export default function RefinedDashboardPage() {
     const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+    const [historyActivity, setHistoryActivity] = useState<any[]>([]);
     const [analysisMetric, setAnalysisMetric] = useState<'revenue' | 'technicians' | 'categories' | 'performance'>('revenue');
     const [chartType, setChartType] = useState<'line' | 'bar' | 'pie'>('line');
 
     useEffect(() => {
         fetchMetrics();
 
-        // Real-time Dashboard Polling
+        // Refresh on window focus
+        const handleFocus = () => {
+            fetchMetrics(true);
+        };
+        window.addEventListener('focus', handleFocus);
+
+        // Real-time Dashboard Polling every 60 seconds
         const interval = setInterval(() => {
             fetchMetrics(true);
-        }, 15000);
+        }, 60000);
 
-        return () => clearInterval(interval);
+        return () => {
+            window.removeEventListener('focus', handleFocus);
+            clearInterval(interval);
+        };
     }, []);
 
     const fetchMetrics = async (isPolling = false) => {
@@ -120,7 +130,7 @@ export default function RefinedDashboardPage() {
                 }
             }
 
-            if (metricsRes && (metricsRes.status === 'success' || metricsRes.success || metricsRes.data)) {
+            if (metricsRes && (metricsRes.status === 'success' || metricsRes.data)) {
                 const metricsData = metricsRes.data || metricsRes;
                 console.log("Dashboard Metrics Response:", metricsData); // Log the dashboard matrix response
                 setMetrics(metricsData);
@@ -132,6 +142,22 @@ export default function RefinedDashboardPage() {
                         days_remaining: metricsData.subscription_days_remaining,
                         expires_on: ''
                     });
+                }
+            }
+
+            if (!isPolling) {
+                try {
+                    const historyRes: any = await providerService.getHistory({ page_size: 3 });
+                    const historyData = historyRes.data ?? historyRes;
+                    const normalizedHistory = (Array.isArray(historyData) ? historyData : []).map((job: any) => ({
+                        label: job.service_type || job.service_name || job.service || 'Service',
+                        details: `${job.customer_name || job.customer?.name || job.user_name || 'Customer'} • ${job.total_amount_collected ?? job.amount ?? 0} ETB`,
+                        type: job.status || job.state || 'history',
+                        color: job.status === 'COMPLETED' || job.status === 'SUCCESS' ? 'bg-green-500' : 'bg-red-500',
+                    }));
+                    setHistoryActivity(normalizedHistory);
+                } catch (error) {
+                    console.warn('Unable to fetch recent history for dashboard activity:', error);
                 }
             }
         } catch (error) {
@@ -182,44 +208,44 @@ export default function RefinedDashboardPage() {
 
     const statsConfig = [
         {
-            label: t('active_jobs'),
-            value: (metrics?.today_jobs ?? 0).toString(),
+            label: t('active_jobs') || 'Active Jobs',
+            value: (metrics?.active_jobs ?? 0).toString(),
             icon: Car,
             trend: null,
             href: '/provider/queue'
         },
         {
-            label: t('pending_requests'),
-            value: (metrics?.pending_requests ?? 0).toString(),
+            label: t('pending_actions') || 'Pending Actions',
+            value: (metrics?.pending_requests ?? metrics?.pending_actions ?? 0).toString(),
             icon: Bell,
             trend: null,
             href: '/provider/queue'
         },
         {
-            label: t('monthly_jobs'),
-            value: (metrics?.total_jobs_this_month ?? 0).toString(),
+            label: t('today_jobs') || "Today's Jobs",
+            value: (metrics?.today_jobs ?? 0).toString(),
             icon: TrendingUp,
             trend: null,
             href: '/provider/history'
         },
         {
-            label: t('total_revenue') + ' (ETB)',
-            value: ((metrics?.total_revenue_today) || (metrics?.revenue_data?.reduce((acc, curr) => acc + (curr.amount || curr.total || 0), 0)) || 0).toLocaleString(),
+            label: t('logged_income_today') || 'Logged Income (ETB)',
+            value: (metrics?.today_revenue ?? metrics?.total_revenue_today ?? 0).toLocaleString(),
             icon: Wallet,
             trend: null,
             href: '/provider/revenue'
         },
         {
-            label: t('technicians'),
-            value: (metrics?.active_technicians ?? 0).toString().padStart(2, '0'),
-            icon: Users,
+            label: t('avg_response_time') || 'Avg. Response Time',
+            value: metrics?.avg_response_time_mins ? `${metrics.avg_response_time_mins.toFixed(1)} min` : '—',
+            icon: Clock,
             trend: null,
-            href: '/provider/technicians'
+            href: '/provider/queue'
         },
         {
-            label: t('avg_rating'),
+            label: t('avg_rating') || 'Average Rating',
             value: (metrics?.avg_rating ?? 0).toFixed(1),
-            icon: Clock,
+            icon: ShieldCheck,
             trend: null,
             href: '/provider/reviews'
         },
@@ -576,21 +602,25 @@ export default function RefinedDashboardPage() {
                         </div>
 
                         <div className="flex-1 space-y-7">
-                            {(metrics?.recent_activity?.length ? metrics.recent_activity : activity).map((item: any, i: number) => (
-                                <div key={i} className="flex gap-5 items-start group cursor-pointer relative">
-                                    <div className={cn(
-                                        "w-3 h-3 rounded-full mt-1.5 shrink-0 transition-all duration-500 border-2 border-white shadow-sm ring-2 ring-transparent group-hover:ring-primary/20",
-                                        item.color
-                                    )}></div>
-                                    {i !== activity.length - 1 && (
+                            {((metrics?.recent_activity?.length ? metrics.recent_activity : historyActivity.length ? historyActivity : [] )).length > 0 ? (
+                                (metrics?.recent_activity?.length ? metrics.recent_activity : historyActivity).map((item: any, i: number) => (
+                                    <div key={i} className="flex gap-5 items-start group cursor-pointer relative">
+                                        <div className={cn(
+                                            "w-3 h-3 rounded-full mt-1.5 shrink-0 transition-all duration-500 border-2 border-white shadow-sm ring-2 ring-transparent group-hover:ring-primary/20",
+                                            item.color || 'bg-gray-300'
+                                        )}></div>
                                         <div className="absolute left-[5px] top-6 bottom-[-20px] w-0.5 bg-gray-50 group-hover:bg-gray-100 transition-colors"></div>
-                                    )}
-                                    <div className="transition-all duration-300 group-hover:translate-x-1.5">
-                                        <p className="text-[13px] font-black text-gray-900 dark:text-white leading-none mb-1.5 group-hover:text-primary dark:group-hover:text-accent transition-colors">{item.label}</p>
-                                        <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">{item.details}</p>
+                                        <div className="transition-all duration-300 group-hover:translate-x-1.5">
+                                            <p className="text-[13px] font-black text-gray-900 dark:text-white leading-none mb-1.5 group-hover:text-primary dark:group-hover:text-accent transition-colors">{item.label}</p>
+                                            <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">{item.details}</p>
+                                        </div>
                                     </div>
+                                ))
+                            ) : (
+                                <div className="flex items-center justify-center min-h-[120px] rounded-3xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 text-sm font-black text-gray-500 dark:text-gray-400">
+                                    No recent activity yet.
                                 </div>
-                            ))}
+                            )}
                         </div>
 
                         <Link href="/provider/history" className="mt-10 flex items-center justify-center gap-2 group text-[10px] font-black text-primary dark:text-white uppercase tracking-[0.2em] bg-gray-50/50 dark:bg-white/5 hover:bg-white dark:hover:bg-white/10 py-4 rounded-2xl border border-gray-100 dark:border-white/5 hover:border-primary/20 dark:hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5 transition-all">

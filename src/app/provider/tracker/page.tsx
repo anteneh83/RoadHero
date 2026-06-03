@@ -24,13 +24,14 @@ import {
     Tag,
     Search,
     RefreshCw,
-    Calendar
+    Calendar,
+    Sparkles
 } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useRouter } from 'next/navigation';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { jobService, technicianService, quoteService, Job, JobStatus, UpdateStatusPayload, FinalizeJobPayload } from '@/services/api.service';
+import { jobService, technicianService, quoteService, inventoryService, InventoryItem, Job, JobStatus, UpdateStatusPayload, FinalizeJobPayload } from '@/services/api.service';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import dynamic from 'next/dynamic';
 
@@ -42,7 +43,7 @@ function cn(...inputs: ClassValue[]) {
 
 const garageLocation: [number, number] = [9.0048, 38.7669];
 
-const statusOrder: JobStatus[] = ['ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'IN_PROGRESS', 'COMPLETED'];
+const statusOrder: JobStatus[] = ['PENDING', 'ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'DIAGNOSING', 'QUOTE_PENDING', 'QUOTE_ACCEPTED', 'IN_PROGRESS', 'COMPLETED'];
 
 export default function JobTrackerPage() {
     const { t } = useLanguage();
@@ -62,6 +63,22 @@ export default function JobTrackerPage() {
     // Quote Engine State
     // ==========================================
     const [quote, setQuote] = useState<any>(null);
+
+    const updateQuoteState = (rawQuote: any) => {
+        if (!rawQuote) {
+            setQuote(null);
+            return;
+        }
+        // Normalize SENT/PENDING/SUBMITTED status to DRAFTED
+        let normalizedStatus = rawQuote.status;
+        if (rawQuote.status === 'SENT' || rawQuote.status === 'PENDING' || rawQuote.status === 'SUBMITTED') {
+            normalizedStatus = 'DRAFTED';
+        }
+        setQuote({
+            ...rawQuote,
+            status: normalizedStatus
+        });
+    };
     const [quoteNotes, setQuoteNotes] = useState('');
     const [quoteValidUntil, setQuoteValidUntil] = useState('');
     const [isLoadingQuote, setIsLoadingQuote] = useState(false);
@@ -73,9 +90,11 @@ export default function JobTrackerPage() {
     const [lineItemQty, setLineItemQty] = useState('1');
     const [lineItemPrice, setLineItemPrice] = useState('');
     const [lineItemPartId, setLineItemPartId] = useState('');
+    const [availableParts, setAvailableParts] = useState<InventoryItem[]>([]);
 
     useEffect(() => {
         fetchActiveJobs();
+        fetchAvailableParts();
     }, []);
 
     // Effect to load existing quote when selectedJobId changes
@@ -107,7 +126,7 @@ export default function JobTrackerPage() {
             }));
 
             const activeJobs = allJobs.filter(j =>
-                ['ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'IN_PROGRESS'].includes(j.status)
+                ['ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'DIAGNOSING', 'QUOTE_PENDING', 'QUOTE_ACCEPTED', 'IN_PROGRESS'].includes(j.status)
             );
 
             setJobs(activeJobs);
@@ -121,35 +140,99 @@ export default function JobTrackerPage() {
         }
     };
 
+    const fetchAvailableParts = async () => {
+        try {
+            const response = await inventoryService.list();
+            const data = response.data || response;
+            const itemsList = Array.isArray(data) ? data : (data.results || []);
+            setAvailableParts(itemsList);
+        } catch (error) {
+            console.error("[Job Tracker] Fetch available parts error:", error);
+        }
+    };
+
+    const handlePartSelectChange = (partIdStr: string) => {
+        setLineItemPartId(partIdStr);
+        if (partIdStr) {
+            const part = availableParts.find(p => p.id === Number(partIdStr));
+            if (part) {
+                setLineItemDesc(part.name);
+                setLineItemPrice(part.price.toString());
+            }
+        } else {
+            setLineItemDesc('');
+            setLineItemPrice('');
+        }
+    };
+
+    const handleTypeChange = (type: 'PART' | 'LABOR') => {
+        setLineItemType(type);
+        setLineItemPartId('');
+        setLineItemDesc('');
+        setLineItemPrice('');
+    };
+
+    const openFinalizeModal = () => {
+        if (quote) {
+            const computedTotal = quote.total_amount || quote.items?.reduce((a: any, b: any) => a + (b.unit_price * b.quantity), 0) || 0;
+            setTotalAmount(computedTotal.toString());
+        } else {
+            setTotalAmount('');
+        }
+        setIsFinalizeModalOpen(true);
+    };
+
     const handleUpdateStatus = async () => {
         const job = jobs.find(j => j.id === selectedJobId);
         if (!job) return;
 
         if (job.status === 'IN_PROGRESS') {
-            setIsFinalizeModalOpen(true);
+            openFinalizeModal();
             return;
         }
 
-        const currentIndex = statusOrder.indexOf(job.status);
-        if (currentIndex === -1 || currentIndex >= statusOrder.length - 2) {
-            return;
-        }
+        let nextStatus: UpdateStatusPayload['status'];
 
-        const nextStatus = statusOrder[currentIndex + 1] as UpdateStatusPayload['status'];
-
-        if (job.status === 'ARRIVED' && nextStatus === 'IN_PROGRESS') {
-            if (quote && quote.status === 'REJECTED') {
-                showToast("Driver declined the quote. Please update the price/items and submit a new quote before proceeding.", 'error');
-                return;
-            }
-            if (quote && quote.status !== 'ACCEPTED' && quote.status !== 'APPROVED') {
-                showToast(`Cannot proceed to In Progress. Quote status is currently ${quote.status || 'PENDING'}. Waiting for driver approval.`, 'info');
-                return;
-            }
+        if (job.status === 'ACCEPTED') {
+            nextStatus = 'EN_ROUTE';
+        } else if (job.status === 'EN_ROUTE') {
+            nextStatus = 'ARRIVED';
+        } else if (job.status === 'ARRIVED') {
+            nextStatus = 'DIAGNOSING';
+        } else if (job.status === 'DIAGNOSING') {
             if (!quote) {
-                showToast("No diagnostic quote created. Please create and submit a quote for driver approval before proceeding.", 'info');
+                showToast("Please create a job quote to proceed.", 'info');
                 return;
             }
+            if (quote.status === 'DRAFT' || quote.status === 'DRAFTED') {
+                showToast("Please submit the job quote to the driver for approval.", 'info');
+                return;
+            }
+            if (quote.status === 'REJECTED') {
+                showToast("Driver declined the quote. Please update the price/items and submit a new quote.", 'error');
+                return;
+            }
+            if (quote.status === 'ACCEPTED' || quote.status === 'APPROVED') {
+                nextStatus = 'IN_PROGRESS';
+            } else {
+                showToast("Awaiting driver approval on the submitted quote.", 'info');
+                return;
+            }
+        } else if (job.status === 'QUOTE_PENDING') {
+            if (quote && (quote.status === 'ACCEPTED' || quote.status === 'APPROVED')) {
+                nextStatus = 'IN_PROGRESS';
+            } else {
+                if (quote && quote.status === 'REJECTED') {
+                    showToast("Driver declined the quote. Please update the price/items and submit a new quote.", 'error');
+                    return;
+                }
+                showToast("Awaiting driver approval on the submitted quote.", 'info');
+                return;
+            }
+        } else if (job.status === 'QUOTE_ACCEPTED') {
+            nextStatus = 'IN_PROGRESS';
+        } else {
+            return;
         }
 
         setIsUpdating(true);
@@ -173,6 +256,7 @@ export default function JobTrackerPage() {
             const payload: FinalizeJobPayload = {
                 total_amount_collected: parseFloat(totalAmount),
                 payment_method: paymentMethod,
+                notes: notes,
                 internal_notes: notes
             };
             await jobService.finalize(selectedJobId, payload);
@@ -221,7 +305,7 @@ export default function JobTrackerPage() {
             const cachedQuoteId = localStorage.getItem(`job_${jobId}_quote_id`);
             if (cachedQuoteId) {
                 const res = await quoteService.get(Number(cachedQuoteId));
-                setQuote(res.data || res);
+                updateQuoteState(res.data || res);
                 setIsLoadingQuote(false);
                 return;
             }
@@ -231,7 +315,7 @@ export default function JobTrackerPage() {
             const possibleQuoteId = (currentJob as any)?.quote_id || (currentJob as any)?.quote?.id;
             if (possibleQuoteId) {
                 const res = await quoteService.get(Number(possibleQuoteId));
-                setQuote(res.data || res);
+                updateQuoteState(res.data || res);
                 localStorage.setItem(`job_${jobId}_quote_id`, possibleQuoteId.toString());
                 setIsLoadingQuote(false);
                 return;
@@ -258,7 +342,7 @@ export default function JobTrackerPage() {
             });
             showToast("Quote initialized successfully!", 'success');
             const newQuote = res.data || res;
-            setQuote(newQuote);
+            updateQuoteState(newQuote);
             if (newQuote?.id) {
                 localStorage.setItem(`job_${selectedJobId}_quote_id`, newQuote.id.toString());
             }
@@ -279,7 +363,7 @@ export default function JobTrackerPage() {
         try {
             const res = await quoteService.get(Number(lookupQuoteId));
             const fetchedQuote = res.data || res;
-            setQuote(fetchedQuote);
+            updateQuoteState(fetchedQuote);
             localStorage.setItem(`job_${selectedJobId}_quote_id`, fetchedQuote.id.toString());
             showToast("Quote linked successfully", 'success');
             setLookupQuoteId('');
@@ -305,7 +389,7 @@ export default function JobTrackerPage() {
             });
             showToast("Line item added", 'success');
             const res = await quoteService.get(quote.id);
-            setQuote(res.data || res);
+            updateQuoteState(res.data || res);
             setLineItemDesc('');
             setLineItemPrice('');
             setLineItemPartId('');
@@ -324,7 +408,7 @@ export default function JobTrackerPage() {
             await quoteService.removeItem(quote.id, itemId);
             showToast("Line item removed", 'success');
             const res = await quoteService.get(quote.id);
-            setQuote(res.data || res);
+            updateQuoteState(res.data || res);
         } catch (error: any) {
             showToast(error.response?.data?.message || error.message || "Failed to remove line item", 'error');
         } finally {
@@ -340,7 +424,8 @@ export default function JobTrackerPage() {
             await quoteService.submit(quote.id);
             showToast("Quote submitted to driver successfully!", 'success');
             const res = await quoteService.get(quote.id);
-            setQuote(res.data || res);
+            updateQuoteState(res.data || res);
+            fetchActiveJobs(); // Sync the active job status immediately (e.g. from DIAGNOSING to QUOTE_PENDING)
         } catch (error: any) {
             showToast(error.response?.data?.message || error.message || "Failed to submit quote", 'error');
         } finally {
@@ -349,14 +434,49 @@ export default function JobTrackerPage() {
     };
 
     const selectedJob = jobs.find(j => j.id === selectedJobId);
-    const currentStatusIndex = selectedJob ? statusOrder.indexOf(selectedJob.status) : 0;
+    const showQuoteEngine = selectedJob ? ['ARRIVED', 'DIAGNOSING', 'QUOTE_PENDING', 'QUOTE_ACCEPTED', 'IN_PROGRESS'].includes(selectedJob.status) : false;
+
+    const getStatusIndex = (status: JobStatus) => {
+        let mappedStatus: JobStatus = status;
+        if (status === 'APPROVED' || status === 'QUOTE_APPROVED' || status === 'ACCEPTED_QUOTE') {
+            mappedStatus = 'QUOTE_ACCEPTED';
+        }
+        return statusOrder.indexOf(mappedStatus);
+    };
+
+    const currentStatusIndex = selectedJob ? getStatusIndex(selectedJob.status) : 0;
 
     const steps = [
-        { id: 'accepted', name: t('accepted') || 'Accepted', done: currentStatusIndex >= 0, active: currentStatusIndex === 0 },
-        { id: 'en_route', name: t('en_route') || 'En Route', done: currentStatusIndex >= 1, active: currentStatusIndex === 1 },
-        { id: 'arrived', name: t('arrived') || 'Arrived', done: currentStatusIndex >= 2, active: currentStatusIndex === 2 },
-        { id: 'work_in_progress', name: t('in_progress') || 'In Progress', done: currentStatusIndex >= 3, active: currentStatusIndex === 3 },
+        { id: 'accepted', name: t('accepted') || 'Accepted', done: currentStatusIndex >= 1, active: selectedJob?.status === 'ACCEPTED' },
+        { id: 'en_route', name: t('en_route') || 'En Route', done: currentStatusIndex >= 2, active: selectedJob?.status === 'EN_ROUTE' },
+        { id: 'arrived', name: t('arrived') || 'Arrived', done: currentStatusIndex >= 3, active: selectedJob?.status === 'ARRIVED' },
+        { id: 'diagnosing', name: 'Diagnosing', done: currentStatusIndex >= 4, active: selectedJob?.status === 'DIAGNOSING' },
+        { id: 'quote_pending', name: 'Quote Pending', done: currentStatusIndex >= 5, active: selectedJob?.status === 'QUOTE_PENDING' },
+        { id: 'quote_accepted', name: 'Quote Approved', done: currentStatusIndex >= 6, active: selectedJob?.status === 'QUOTE_ACCEPTED' || selectedJob?.status === 'APPROVED' || selectedJob?.status === 'QUOTE_APPROVED' || selectedJob?.status === 'ACCEPTED_QUOTE' },
+        { id: 'work_in_progress', name: t('in_progress') || 'In Progress', done: currentStatusIndex >= 7, active: selectedJob?.status === 'IN_PROGRESS' },
     ];
+
+    const getStatusButtonText = () => {
+        if (!selectedJob) return '';
+        if (selectedJob.status === 'IN_PROGRESS') {
+            return "Finalize Job & Collect Payment";
+        }
+        if (selectedJob.status === 'QUOTE_ACCEPTED' || selectedJob.status === 'APPROVED' || selectedJob.status === 'QUOTE_APPROVED' || selectedJob.status === 'ACCEPTED_QUOTE') {
+            return "Start Work (In Progress)";
+        }
+        if (selectedJob.status === 'DIAGNOSING') {
+            if (!quote) return "Create Quote to Proceed";
+            if (quote.status === 'DRAFT' || quote.status === 'DRAFTED') return "Submit Quote to Proceed";
+            if (quote.status === 'ACCEPTED' || quote.status === 'APPROVED') return "Start Work (In Progress)";
+            return "Awaiting Driver Approval";
+        }
+        if (selectedJob.status === 'QUOTE_PENDING') {
+            if (quote && (quote.status === 'ACCEPTED' || quote.status === 'APPROVED')) return "Start Work (In Progress)";
+            return "Awaiting Driver Approval";
+        }
+        return `${t('update_status') || 'Update Status'}: ${steps[currentStatusIndex]?.name || 'Next Phase'}`;
+    };
+
 
     if (isLoading && jobs.length === 0) {
         return (
@@ -434,7 +554,7 @@ export default function JobTrackerPage() {
                                 <div className="absolute top-[22px] left-[60px] right-[60px] h-[4px] bg-gray-100 dark:bg-white/5 rounded-full transition-colors"></div>
                                 <div
                                     className="absolute top-[22px] left-[60px] h-[4px] bg-primary transition-all duration-1000 shadow-[0_0_15px_rgba(30,58,138,0.5)] rounded-full"
-                                    style={{ width: `calc((100% - 120px) * ${(currentStatusIndex / (statusOrder.length - 2))})` }}
+                                    style={{ width: `calc((100% - 120px) * ${(Math.max(0, currentStatusIndex - 1) / (steps.length - 1))})` }}
                                 ></div>
 
                                 {steps.map((step, i) => (
@@ -472,7 +592,7 @@ export default function JobTrackerPage() {
                             {/* Left Column (2 spans): Map Area */}
                             <div className={cn(
                                 "bg-white dark:bg-white/5 rounded-[40px] border border-gray-100 dark:border-white/5 shadow-2xl shadow-black/5 p-6 flex flex-col gap-6 min-h-[550px] transition-all duration-700",
-                                (selectedJob.status === 'ARRIVED' || selectedJob.status === 'IN_PROGRESS') ? "lg:col-span-2" : "lg:col-span-3"
+                                showQuoteEngine ? "lg:col-span-2" : "lg:col-span-3"
                             )}>
                                 {/* Info Card ABOVE the map */}
                                 <div className="px-8 py-6 flex flex-col sm:flex-row items-center justify-between bg-gray-50 dark:bg-white/5 rounded-3xl border border-gray-100 dark:border-white/5 shadow-inner transition-all duration-700 gap-4">
@@ -519,8 +639,8 @@ export default function JobTrackerPage() {
                                 </div>
                             </div>
 
-                            {/* Right Column (1 span): Optional Quote Engine (Visible during ARRIVED & IN_PROGRESS) */}
-                            {(selectedJob.status === 'ARRIVED' || selectedJob.status === 'IN_PROGRESS') && (
+                            {/* Right Column (1 span): Optional Quote Engine */}
+                            {showQuoteEngine && (
                                 <div className="bg-white/70 dark:bg-white/5 backdrop-blur-md p-8 rounded-[32px] border border-white/40 dark:border-white/5 shadow-sm space-y-6 relative overflow-hidden group/quote animate-in fade-in slide-in-from-right-4 duration-700">
                                     <div className="absolute -right-6 -top-6 w-24 h-24 bg-primary/5 rounded-full blur-3xl group-hover/quote:bg-primary/10 transition-colors"></div>
                                     
@@ -559,11 +679,19 @@ export default function JobTrackerPage() {
                                                     <span className={cn(
                                                         "text-[9px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full mt-1 inline-block",
                                                         quote.status === 'ACCEPTED' || quote.status === 'APPROVED' ? "bg-green-100 text-green-600 dark:bg-green-900/20 dark:text-green-400" :
-                                                        quote.status === 'PENDING' ? "bg-orange-100 text-orange-600 dark:bg-orange-900/20 dark:text-orange-400" :
+                                                        quote.status === 'PENDING' || quote.status === 'DRAFTED' ? "bg-orange-100 text-orange-600 dark:bg-orange-900/20 dark:text-orange-400" :
                                                         "bg-gray-200 text-gray-700 dark:bg-white/10 dark:text-white/70"
                                                     )}>
                                                         {quote.status || 'DRAFT'}
                                                     </span>
+                                                    {quote.transparency_score !== undefined && (
+                                                        <div className="mt-2 flex items-center gap-1.5 bg-blue-50 dark:bg-blue-950/20 px-2.5 py-1 rounded-lg border border-blue-100 dark:border-blue-900/30 w-fit">
+                                                            <Sparkles size={11} className="text-primary dark:text-accent" />
+                                                            <span className="text-[9px] font-black text-primary dark:text-accent uppercase tracking-widest">
+                                                                Trust: {quote.transparency_score}/100
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <div className="text-right">
                                                     <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Total Amount</p>
@@ -572,6 +700,18 @@ export default function JobTrackerPage() {
                                                     </p>
                                                 </div>
                                             </div>
+
+                                            {(quote.counter_offer || quote.counter_offer_amount) && (
+                                                <div className="p-4 bg-red-50/50 dark:bg-red-950/10 border border-red-100 dark:border-red-900/20 rounded-2xl flex items-center justify-between">
+                                                    <div>
+                                                        <p className="text-[9px] font-black text-red-500 uppercase tracking-widest">Driver Counter Offer</p>
+                                                        <p className="text-[10px] font-bold text-gray-500 mt-0.5">Recommended adjustment</p>
+                                                    </div>
+                                                    <p className="text-sm font-black text-red-600 dark:text-red-400">
+                                                        {Number(quote.counter_offer || quote.counter_offer_amount).toLocaleString()} ETB
+                                                    </p>
+                                                </div>
+                                            )}
 
                                             {/* Line Items List */}
                                             <div className="space-y-3">
@@ -592,13 +732,15 @@ export default function JobTrackerPage() {
                                                                     <span className="text-xs font-black text-gray-900 dark:text-white">
                                                                         {(item.quantity * item.unit_price).toLocaleString()} ETB
                                                                     </span>
-                                                                    <button 
-                                                                        onClick={() => handleRemoveLineItem(item.id)}
-                                                                        className="p-2 bg-gray-100 dark:bg-white/5 rounded-lg text-gray-400 hover:text-white hover:bg-red-500 transition-all active:scale-90 shadow-sm"
-                                                                        title="Remove Item"
-                                                                    >
-                                                                        <Trash2 size={14} />
-                                                                    </button>
+                                                                    {(quote.status === 'DRAFT' || quote.status === 'REJECTED') && (
+                                                                        <button 
+                                                                            onClick={() => handleRemoveLineItem(item.id)}
+                                                                            className="p-2 bg-gray-100 dark:bg-white/5 rounded-lg text-gray-400 hover:text-white hover:bg-red-500 transition-all active:scale-90 shadow-sm"
+                                                                            title="Remove Item"
+                                                                        >
+                                                                            <Trash2 size={14} />
+                                                                        </button>
+                                                                    )}
                                                                 </div>
                                                             </div>
                                                         ))}
@@ -611,78 +753,97 @@ export default function JobTrackerPage() {
                                             </div>
 
                                             {/* Add Line Item Form */}
-                                            <form onSubmit={handleAddLineItem} className="bg-gray-50/80 dark:bg-white/5 p-5 rounded-2xl border border-gray-100 dark:border-white/10 space-y-4 shadow-inner">
-                                                <h5 className="text-[10px] font-black text-gray-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
-                                                    <Plus size={14} className="text-primary dark:text-accent" /> Add Line Item
-                                                </h5>
-                                                <div className="grid grid-cols-2 gap-3">
-                                                    <select 
-                                                        value={lineItemType} 
-                                                        onChange={(e) => setLineItemType(e.target.value as any)}
-                                                        className="px-4 py-3 bg-white dark:bg-black border border-gray-100 dark:border-white/10 rounded-xl text-xs font-black text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-primary/20 shadow-sm"
-                                                    >
-                                                        <option value="PART">Spare Part</option>
-                                                        <option value="LABOR">Labor</option>
-                                                    </select>
+                                            {(quote.status === 'DRAFT' || quote.status === 'REJECTED') && (
+                                                <form onSubmit={handleAddLineItem} className="bg-gray-50/80 dark:bg-white/5 p-5 rounded-2xl border border-gray-100 dark:border-white/10 space-y-4 shadow-inner">
+                                                    <h5 className="text-[10px] font-black text-gray-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
+                                                        <Plus size={14} className="text-primary dark:text-accent" /> Add Line Item
+                                                    </h5>
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        <select 
+                                                            value={lineItemType} 
+                                                            onChange={(e) => handleTypeChange(e.target.value as any)}
+                                                            className="px-4 py-3 bg-white dark:bg-black border border-gray-100 dark:border-white/10 rounded-xl text-xs font-black text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-primary/20 shadow-sm"
+                                                        >
+                                                            <option value="PART">Spare Part</option>
+                                                            <option value="LABOR">Labor</option>
+                                                        </select>
+                                                        {lineItemType === 'PART' ? (
+                                                            <select
+                                                                value={lineItemPartId}
+                                                                onChange={(e) => handlePartSelectChange(e.target.value)}
+                                                                className="px-4 py-3 bg-white dark:bg-black border border-gray-100 dark:border-white/10 rounded-xl text-xs font-bold text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-primary/20 shadow-sm"
+                                                            >
+                                                                <option value="">Select Part...</option>
+                                                                {availableParts.map((part) => (
+                                                                    <option key={part.id} value={part.id}>
+                                                                        {part.name} ({part.quantity} available) - {part.price.toLocaleString()} ETB
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                        ) : (
+                                                            <input 
+                                                                type="text" 
+                                                                disabled
+                                                                value=""
+                                                                placeholder="No Part (Labor)" 
+                                                                className="px-4 py-3 bg-gray-100 dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-xl text-xs font-bold text-gray-400 dark:text-gray-600 outline-none cursor-not-allowed shadow-sm"
+                                                            />
+                                                        )}
+                                                    </div>
                                                     <input 
-                                                        type="number" 
-                                                        value={lineItemPartId} 
-                                                        onChange={(e) => setLineItemPartId(e.target.value)}
-                                                        placeholder="Part ID (Opt)" 
-                                                        className="px-4 py-3 bg-white dark:bg-black border border-gray-100 dark:border-white/10 rounded-xl text-xs font-bold text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-primary/20 shadow-sm"
+                                                        type="text" 
+                                                        value={lineItemDesc} 
+                                                        onChange={(e) => setLineItemDesc(e.target.value)}
+                                                        placeholder="Description (e.g. Brake Pads)" 
+                                                        required
+                                                        className="w-full px-4 py-3 bg-white dark:bg-black border border-gray-100 dark:border-white/10 rounded-xl text-xs font-bold text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-primary/20 shadow-sm"
                                                     />
-                                                </div>
-                                                <input 
-                                                    type="text" 
-                                                    value={lineItemDesc} 
-                                                    onChange={(e) => setLineItemDesc(e.target.value)}
-                                                    placeholder="Description (e.g. Brake Pads)" 
-                                                    required
-                                                    className="w-full px-4 py-3 bg-white dark:bg-black border border-gray-100 dark:border-white/10 rounded-xl text-xs font-bold text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-primary/20 shadow-sm"
-                                                />
-                                                <div className="grid grid-cols-2 gap-3">
-                                                    <div>
-                                                        <label className="block text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Qty</label>
-                                                        <input 
-                                                            type="number" 
-                                                            value={lineItemQty} 
-                                                            onChange={(e) => setLineItemQty(e.target.value)}
-                                                            min="1" 
-                                                            required
-                                                            className="w-full px-4 py-3 bg-white dark:bg-black border border-gray-100 dark:border-white/10 rounded-xl text-xs font-black text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-primary/20 shadow-sm"
-                                                        />
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        <div>
+                                                            <label className="block text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Qty</label>
+                                                            <input 
+                                                                type="number" 
+                                                                value={lineItemQty} 
+                                                                onChange={(e) => setLineItemQty(e.target.value)}
+                                                                min="1" 
+                                                                required
+                                                                className="w-full px-4 py-3 bg-white dark:bg-black border border-gray-100 dark:border-white/10 rounded-xl text-xs font-black text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-primary/20 shadow-sm"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Unit Price</label>
+                                                            <input 
+                                                                type="number" 
+                                                                value={lineItemPrice} 
+                                                                onChange={(e) => setLineItemPrice(e.target.value)}
+                                                                placeholder="ETB" 
+                                                                required
+                                                                className="w-full px-4 py-3 bg-white dark:bg-black border border-gray-100 dark:border-white/10 rounded-xl text-xs font-black text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-primary/20 shadow-sm"
+                                                            />
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <label className="block text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Unit Price</label>
-                                                        <input 
-                                                            type="number" 
-                                                            value={lineItemPrice} 
-                                                            onChange={(e) => setLineItemPrice(e.target.value)}
-                                                            placeholder="ETB" 
-                                                            required
-                                                            className="w-full px-4 py-3 bg-white dark:bg-black border border-gray-100 dark:border-white/10 rounded-xl text-xs font-black text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-primary/20 shadow-sm"
-                                                        />
-                                                    </div>
-                                                </div>
-                                                <button 
-                                                    type="submit"
-                                                    className="w-full py-3 bg-gray-900 dark:bg-accent text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-black dark:hover:bg-accent/80 transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 mt-2"
-                                                >
-                                                    <Plus size={16} /> Add Item
-                                                </button>
-                                            </form>
+                                                    <button 
+                                                        type="submit"
+                                                        className="w-full py-3 bg-gray-900 dark:bg-accent text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-black dark:hover:bg-accent/80 transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 mt-2"
+                                                    >
+                                                        <Plus size={16} /> Add Item
+                                                    </button>
+                                                </form>
+                                            )}
 
                                             {/* Submit Quote Button */}
-                                            <button 
-                                                onClick={handleSubmitQuote}
-                                                disabled={!quote.items?.length}
-                                                className={cn(
-                                                    "w-full py-4 bg-primary text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2 hover:bg-blue-700 active:scale-95",
-                                                    !quote.items?.length && "opacity-50 cursor-not-allowed shadow-none hover:bg-primary"
-                                                )}
-                                            >
-                                                <Send size={16} /> Submit Quote to Driver
-                                            </button>
+                                            {(quote.status === 'DRAFT' || quote.status === 'REJECTED') && (
+                                                <button 
+                                                    onClick={handleSubmitQuote}
+                                                    disabled={!quote.items?.length}
+                                                    className={cn(
+                                                        "w-full py-4 bg-primary text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2 hover:bg-blue-700 active:scale-95",
+                                                        !quote.items?.length && "opacity-50 cursor-not-allowed shadow-none hover:bg-primary"
+                                                    )}
+                                                >
+                                                    <Send size={16} /> Submit Quote to Driver
+                                                </button>
+                                            )}
                                         </div>
                                     ) : (
                                         /* Initialize or Lookup Quote Forms */
@@ -743,7 +904,16 @@ export default function JobTrackerPage() {
                         </div>
 
                         {/* Global Status Action */}
-                        <div className="flex justify-end z-[120] w-full mt-6">
+                        <div className="flex justify-end gap-4 z-[120] w-full mt-6">
+                            {selectedJob && (selectedJob.status === 'QUOTE_ACCEPTED' || selectedJob.status === 'APPROVED' || selectedJob.status === 'QUOTE_APPROVED' || selectedJob.status === 'ACCEPTED_QUOTE') && (
+                                <button
+                                    onClick={openFinalizeModal}
+                                    disabled={isUpdating}
+                                    className="px-8 py-5 bg-green-600 rounded-2xl text-white text-xs font-black uppercase tracking-[0.2em] shadow-2xl shadow-green-900/40 hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center border-2 border-white dark:border-white/10 disabled:opacity-50 min-w-[200px]"
+                                >
+                                    Finalize Job (Direct)
+                                </button>
+                            )}
                             <button
                                 onClick={handleUpdateStatus}
                                 disabled={isUpdating}
@@ -752,11 +922,7 @@ export default function JobTrackerPage() {
                                 {isUpdating ? (
                                     <Loader2 className="animate-spin" size={18} />
                                 ) : (
-                                    <>
-                                        {selectedJob.status === 'IN_PROGRESS'
-                                            ? "Finalize Job & Collect Payment"
-                                            : `${t('update_status') || 'Update Status'}: ${steps[currentStatusIndex + 1]?.name || 'Next Phase'}`}
-                                    </>
+                                    <>{getStatusButtonText()}</>
                                 )}
                             </button>
                         </div>
@@ -797,21 +963,26 @@ export default function JobTrackerPage() {
 
                                 <div className="space-y-4">
                                     <label className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">{t('payment_method_label') || 'Payment Method'}</label>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        {['CASH', 'TELEBIRR', 'AIBALANCE'].map(method => (
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                        {[
+                                            { name: 'CASH', icon: <DollarSign size={14} /> },
+                                            { name: 'CHAPA', icon: <Zap size={14} /> },
+                                            { name: 'TELEBIRR', icon: <CreditCard size={14} /> },
+                                            { name: 'CBE', icon: <ShieldCheck size={14} /> },
+                                            { name: 'MANUAL', icon: <FileText size={14} /> }
+                                        ].map(method => (
                                             <button
-                                                key={method}
-                                                onClick={() => setPaymentMethod(method)}
+                                                key={method.name}
+                                                onClick={() => setPaymentMethod(method.name)}
                                                 className={cn(
-                                                    "py-4 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 transition-all flex items-center justify-center gap-2",
-                                                    paymentMethod === method
+                                                    "py-3 px-2 rounded-xl text-[9px] font-black uppercase tracking-widest border-2 transition-all flex items-center justify-center gap-1.5",
+                                                    paymentMethod === method.name
                                                         ? "bg-primary/5 border-primary text-primary"
                                                         : "bg-white dark:bg-white/5 border-gray-50 dark:border-white/5 text-gray-400"
                                                 )}
                                             >
-                                                {method === 'CASH' && <DollarSign size={14} />}
-                                                {method !== 'CASH' && <CreditCard size={14} />}
-                                                {method}
+                                                {method.icon}
+                                                {method.name}
                                             </button>
                                         ))}
                                     </div>

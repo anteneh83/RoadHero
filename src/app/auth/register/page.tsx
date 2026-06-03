@@ -54,30 +54,27 @@ function RegisterContent() {
     const [fullName, setFullName] = useState('');
     const [email, setEmail] = useState('');
     const [businessName, setBusinessName] = useState('');
-    const [tinNumber, setTinNumber] = useState('');
-    const [selectedCategories, setSelectedCategories] = useState<string[]>(['Mechanical Repair', 'Towing']);
+    const [businessType, setBusinessType] = useState('GARAGE');
+    const [businessPhone, setBusinessPhone] = useState('');
+    const [businessEmail, setBusinessEmail] = useState('');
+    const [businessDescription, setBusinessDescription] = useState('');
 
     // Step 3: Location
-    const [location, setLocation] = useState<[number, number]>([9.0048, 38.7669]);
-    const [landmark, setLandmark] = useState('');
-    const [directionsNote, setDirectionsNote] = useState('');
+    const [location, setLocation] = useState<[number, number]>([9.0192, 38.7525]);
+    const [address, setAddress] = useState('');
+    const [operatingHours, setOperatingHours] = useState('Mon-Sat 7:00-19:00');
 
     // Step 4: Verification
     const [businessLicense, setBusinessLicense] = useState<string | null>(null);
     const [businessLicenseUrl, setBusinessLicenseUrl] = useState<string | null>(null);
     const [isUploadingLicense, setIsUploadingLicense] = useState(false);
 
-    const [tinCertificate, setTinCertificate] = useState<string | null>(null);
-    const [tinCertificateUrl, setTinCertificateUrl] = useState<string | null>(null);
-    const [isUploadingTin, setIsUploadingTin] = useState(false);
-
-    const [ownerId, setOwnerId] = useState<string | null>(null);
-    const [ownerIdUrl, setOwnerIdUrl] = useState<string | null>(null);
+    const [idDocument, setIdDocument] = useState<string | null>(null);
+    const [idDocumentUrl, setIdDocumentUrl] = useState<string | null>(null);
     const [isUploadingId, setIsUploadingId] = useState(false);
 
     const licenseRef = useRef<HTMLInputElement>(null);
-    const tinRef = useRef<HTMLInputElement>(null);
-    const ownerIdRef = useRef<HTMLInputElement>(null);
+    const idDocRef = useRef<HTMLInputElement>(null);
 
     const showToast = (message: string, type: 'success' | 'error' | 'info') => {
         window.dispatchEvent(new CustomEvent('show-toast', { detail: { message, type } }));
@@ -145,22 +142,24 @@ function RegisterContent() {
                 setIsLoading(false);
             }
         } else if (currentStep === 2) {
-            if (!businessName || selectedCategories.length === 0) {
+            if (!businessName || !businessType) {
                 showToast("Please fill in required business details", "error");
                 return;
             }
 
             setIsLoading(true);
             try {
-                // Step 2: Update business info
-                await onboardingService.updateBusiness({
+                // Step 2: Save business info
+                await onboardingService.saveBusiness({
                     business_name: businessName,
-                    tin_number: tinNumber || undefined,
-                    service_categories: selectedCategories
+                    business_type: businessType,
+                    phone_number: businessPhone || phoneNumber,
+                    email: businessEmail || email || undefined,
+                    description: businessDescription || undefined
                 });
 
                 setCurrentStep(3);
-                showToast("Business details updated!", "success");
+                showToast("Business details saved!", "success");
             } catch (error: any) {
                 const message = error.response?.data?.message || (error.message === "Network Error" ? "Network error: Connection blocked by server (CORS)" : "Update failed");
                 showToast(message, "error");
@@ -168,16 +167,20 @@ function RegisterContent() {
                 setIsLoading(false);
             }
         } else if (currentStep === 3) {
+            if (!address) {
+                showToast("Please provide your business address", "error");
+                return;
+            }
             setIsLoading(true);
             try {
-                await onboardingService.updateLocation({
-                    lat: location[0],
-                    lng: location[1],
-                    search_area: landmark || undefined,
-                    specific_instructions: directionsNote || undefined
+                await onboardingService.saveLocation({
+                    latitude: location[0],
+                    longitude: location[1],
+                    address: address,
+                    operating_hours: operatingHours || undefined
                 });
                 setCurrentStep(4);
-                showToast("Location updated!", "success");
+                showToast("Location saved!", "success");
             } catch (error: any) {
                 const message = error.response?.data?.message || (error.message === "Network Error" ? "Network error: Connection blocked by server (CORS)" : "Location update failed");
                 showToast(message, "error");
@@ -185,16 +188,15 @@ function RegisterContent() {
                 setIsLoading(false);
             }
         } else if (currentStep === 4) {
-            if (!businessLicenseUrl) {
-                showToast("Business license upload is required", "error");
+            if (!businessLicenseUrl || !idDocumentUrl) {
+                showToast("Both business license and ID document are required", "error");
                 return;
             }
             setIsLoading(true);
             try {
                 await onboardingService.submitVerification({
                     business_license_url: businessLicenseUrl,
-                    tin_certificate_url: tinCertificateUrl || undefined,
-                    owner_id_front_url: ownerIdUrl || undefined
+                    id_document_url: idDocumentUrl
                 });
                 showToast("Verification submitted successfully!", "success");
                 window.location.href = '/auth/register/success';
@@ -205,12 +207,6 @@ function RegisterContent() {
                 setIsLoading(false);
             }
         }
-    };
-
-    const toggleCategory = (cat: string) => {
-        setSelectedCategories(prev =>
-            prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
-        );
     };
 
     const renderStep = () => {
@@ -288,46 +284,60 @@ function RegisterContent() {
                                         type="text"
                                         value={businessName}
                                         onChange={(e) => setBusinessName(e.target.value)}
-                                        placeholder={t('business_name_placeholder')}
+                                        placeholder="e.g. Kassa Auto Garage & Towing"
                                         className="w-full px-5 py-4 rounded-[20px] border border-white/20 dark:border-white/10 bg-white/20 dark:bg-white/[0.05] text-gray-900 dark:text-white focus:bg-white dark:focus:bg-white/[0.1] focus:border-primary dark:focus:border-accent transition-all outline-none font-bold text-sm shadow-sm"
                                     />
                                 </div>
                                 <div className="space-y-3.5">
-                                    <label className="text-[10px] font-black text-white/50 dark:text-gray-400 uppercase tracking-[0.2em] ml-1">{t('service_category_label')}</label>
+                                    <label className="text-[10px] font-black text-white/50 dark:text-gray-400 uppercase tracking-[0.2em] ml-1">{t('business_type') || 'BUSINESS TYPE'}</label>
                                     <div className="flex flex-wrap gap-3">
-                                        {['Mechanical Repair', 'Towing', 'Tire Change', 'Fuel Delivery', 'Electrician'].map((cat) => (
+                                        {['GARAGE', 'TOWING', 'MOBILE_MECHANIC', 'TIRE_SHOP', 'AUTO_ELECTRIC'].map((type) => (
                                             <button
-                                                key={cat}
+                                                key={type}
                                                 type="button"
-                                                onClick={() => toggleCategory(cat)}
+                                                onClick={() => setBusinessType(type)}
                                                 className={cn(
                                                     "px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border shadow-sm",
-                                                    selectedCategories.includes(cat)
+                                                    businessType === type
                                                         ? "bg-primary text-white border-primary shadow-blue-900/40 scale-105"
                                                         : "bg-white/10 dark:bg-white/5 text-white/60 dark:text-gray-400 border-white/20 dark:border-white/10 hover:border-primary/40 hover:bg-white/20"
                                                 )}
                                             >
-                                                {t(cat.toLowerCase().replace(' ', '_')) || cat}
+                                                {type.replace(/_/g, ' ')}
                                             </button>
                                         ))}
                                     </div>
                                 </div>
-                                <div className="space-y-2.5">
-                                    <label className="text-[10px] font-black text-white/50 dark:text-gray-400 uppercase tracking-[0.2em] ml-1">{t('tin_number_label')}</label>
-                                    <div className="relative group">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-2.5">
+                                        <label className="text-[10px] font-black text-white/50 dark:text-gray-400 uppercase tracking-[0.2em] ml-1">{t('phone_label') || 'PHONE NUMBER'}</label>
                                         <input
                                             type="text"
-                                            value={tinNumber}
-                                            onChange={(e) => setTinNumber(e.target.value)}
-                                            placeholder={t('tin_number_placeholder')}
+                                            value={businessPhone}
+                                            onChange={(e) => setBusinessPhone(e.target.value)}
+                                            placeholder="+251911234567"
                                             className="w-full px-5 py-4 rounded-[20px] border border-white/20 dark:border-white/10 bg-white/20 dark:bg-white/[0.02] text-gray-900 dark:text-white focus:bg-white dark:focus:bg-white/[0.1] focus:border-primary dark:focus:border-accent transition-all outline-none font-bold text-sm shadow-sm"
                                         />
-                                        {tinNumber && (
-                                            <div className="absolute right-5 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-green-500 text-[9px] font-black uppercase tracking-tighter bg-green-500/10 px-2 py-1 rounded-full">
-                                                <Check size={14} /> {t('accepted')}
-                                            </div>
-                                        )}
                                     </div>
+                                    <div className="space-y-2.5">
+                                        <label className="text-[10px] font-black text-white/50 dark:text-gray-400 uppercase tracking-[0.2em] ml-1">{t('email_label') || 'EMAIL'}</label>
+                                        <input
+                                            type="email"
+                                            value={businessEmail}
+                                            onChange={(e) => setBusinessEmail(e.target.value)}
+                                            placeholder="info@yourbusiness.et"
+                                            className="w-full px-5 py-4 rounded-[20px] border border-white/20 dark:border-white/10 bg-white/20 dark:bg-white/[0.02] text-gray-900 dark:text-white focus:bg-white dark:focus:bg-white/[0.1] focus:border-primary dark:focus:border-accent transition-all outline-none font-bold text-sm shadow-sm"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-2.5">
+                                    <label className="text-[10px] font-black text-white/50 dark:text-gray-400 uppercase tracking-[0.2em] ml-1">{t('description') || 'DESCRIPTION'}</label>
+                                    <textarea
+                                        value={businessDescription}
+                                        onChange={(e) => setBusinessDescription(e.target.value)}
+                                        placeholder="Full-service auto garage specializing in engine repair..."
+                                        className="w-full px-5 py-4 rounded-[20px] border border-white/20 dark:border-white/10 bg-white/20 dark:bg-white/[0.02] text-gray-900 dark:text-white focus:bg-white dark:focus:bg-white/[0.1] focus:border-primary dark:focus:border-accent transition-all outline-none font-bold text-sm shadow-sm h-28 resize-none"
+                                    />
                                 </div>
                             </div>
                         </section>
@@ -362,14 +372,14 @@ function RegisterContent() {
 
                         <div className="space-y-8 shrink-0">
                             <div className="space-y-3">
-                                <label className="text-[10px] font-black text-white/50 dark:text-gray-400 uppercase tracking-[0.2em] ml-1 transition-colors">{t('search_landmark')}</label>
+                                <label className="text-[10px] font-black text-white/50 dark:text-gray-400 uppercase tracking-[0.2em] ml-1 transition-colors">{t('address') || 'ADDRESS'}</label>
                                 <div className="relative group">
                                     <MapPin size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-primary/40 dark:text-gray-600 group-focus-within:text-primary transition-colors" />
                                     <input
                                         type="text"
-                                        value={landmark}
-                                        onChange={(e) => setLandmark(e.target.value)}
-                                        placeholder={t('search_landmark_placeholder')}
+                                        value={address}
+                                        onChange={(e) => setAddress(e.target.value)}
+                                        placeholder="e.g. Bole Sub City, Woreda 03, Addis Ababa"
                                         className="w-full pl-14 pr-6 py-4.5 rounded-[22px] border border-white/20 dark:border-white/10 bg-white/20 dark:bg-white/10 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-white/[0.1] focus:border-primary dark:focus:border-accent outline-none text-[13px] font-bold shadow-sm focus:ring-8 focus:ring-primary/5 transition-all"
                                     />
                                 </div>
@@ -377,8 +387,8 @@ function RegisterContent() {
 
                             <div className="p-6 bg-gray-900/90 dark:bg-black/80 backdrop-blur-md rounded-[32px] shadow-2xl space-y-4 border border-white/10 transition-all">
                                 <div className="flex justify-between items-center">
-                                    <span className="text-[8px] font-black text-white/30 uppercase tracking-[0.4em]">{t('spatial_accuracy')}</span>
-                                    <div className="px-2 py-0.5 bg-green-500/20 text-green-400 text-[8px] font-black rounded uppercase tracking-widest border border-green-500/20">98% Verified</div>
+                                    <span className="text-[8px] font-black text-white/30 uppercase tracking-[0.4em]">{t('spatial_accuracy') || 'COORDINATES'}</span>
+                                    <div className="px-2 py-0.5 bg-green-500/20 text-green-400 text-[8px] font-black rounded uppercase tracking-widest border border-green-500/20">GPS Pinned</div>
                                 </div>
                                 <div className="space-y-1 text-center py-1">
                                     <p className="text-[11px] font-bold text-white/60 font-mono tracking-tight transition-colors flex items-center justify-center gap-2">
@@ -391,12 +401,13 @@ function RegisterContent() {
                             </div>
 
                             <div className="space-y-3">
-                                <label className="text-[10px] font-black text-white/50 dark:text-gray-500 uppercase tracking-[0.2em] ml-1 transition-colors">{t('directions_note_label')}</label>
-                                <textarea
-                                    className="w-full px-6 py-4.5 rounded-[24px] border border-white/20 dark:border-white/10 bg-white/20 dark:bg-white/10 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-white/[0.1] focus:ring-8 focus:ring-primary/5 transition-all outline-none text-[12px] h-32 resize-none font-bold placeholder:text-gray-400 dark:placeholder:text-gray-600 shadow-sm"
-                                    placeholder={t('directions_note_placeholder')}
-                                    value={directionsNote}
-                                    onChange={(e) => setDirectionsNote(e.target.value)}
+                                <label className="text-[10px] font-black text-white/50 dark:text-gray-500 uppercase tracking-[0.2em] ml-1 transition-colors">{t('operating_hours') || 'OPERATING HOURS'}</label>
+                                <input
+                                    type="text"
+                                    value={operatingHours}
+                                    onChange={(e) => setOperatingHours(e.target.value)}
+                                    placeholder="Mon-Sat 7:00-19:00"
+                                    className="w-full px-6 py-4.5 rounded-[24px] border border-white/20 dark:border-white/10 bg-white/20 dark:bg-white/10 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-white/[0.1] focus:ring-8 focus:ring-primary/5 transition-all outline-none text-[13px] font-bold placeholder:text-gray-400 dark:placeholder:text-gray-600 shadow-sm"
                                 />
                             </div>
                         </div>
@@ -407,13 +418,13 @@ function RegisterContent() {
                     <div className="flex flex-col gap-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
                         <div className="space-y-6">
                             <div className="space-y-3 text-center">
-                                <h3 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight transition-colors uppercase">{t('verify_business_title')}</h3>
-                                <p className="text-sm text-white/50 dark:text-gray-400 font-medium transition-colors mx-auto max-w-sm">{t('verify_business_desc')}</p>
+                                <h3 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight transition-colors uppercase">{t('verify_business_title') || 'VERIFY BUSINESS'}</h3>
+                                <p className="text-sm text-white/50 dark:text-gray-400 font-medium transition-colors mx-auto max-w-sm">{t('verify_business_desc') || 'Please upload the following documents for account verification.'}</p>
                             </div>
 
                             <div className="grid md:grid-cols-2 gap-8">
                                 <div className="space-y-4">
-                                    <label className="text-[10px] font-black text-white/50 dark:text-gray-400 uppercase tracking-[0.2em] ml-1 transition-colors">{t('business_license_label')}</label>
+                                    <label className="text-[10px] font-black text-white/50 dark:text-gray-400 uppercase tracking-[0.2em] ml-1 transition-colors">{t('business_license_label') || 'BUSINESS LICENSE'}</label>
                                     <input
                                         type="file"
                                         ref={licenseRef}
@@ -442,80 +453,45 @@ function RegisterContent() {
                                         </div>
                                         <div className="text-center">
                                             <p className="text-sm font-black text-gray-900 dark:text-white truncate max-w-[180px] transition-colors">
-                                                {businessLicense || t('select_file')}
+                                                {businessLicense || t('select_file') || 'Select file'}
                                             </p>
-                                            {!businessLicense && <p className="text-[10px] font-bold text-white/30 uppercase tracking-[0.2em] mt-1.5">{t('max_size')}</p>}
+                                            {!businessLicense && <p className="text-[10px] font-bold text-white/30 uppercase tracking-[0.2em] mt-1.5">{t('max_size') || 'Max size 5MB'}</p>}
                                         </div>
                                     </div>
                                 </div>
 
                                 <div className="space-y-4">
-                                    <label className="text-[10px] font-black text-white/50 dark:text-gray-400 uppercase tracking-[0.2em] ml-1 transition-colors">{t('tin_certificate_label')}</label>
+                                    <label className="text-[10px] font-black text-white/50 dark:text-gray-400 uppercase tracking-[0.2em] ml-1 transition-colors">{t('id_document_label') || 'ID DOCUMENT'}</label>
                                     <input
                                         type="file"
-                                        ref={tinRef}
+                                        ref={idDocRef}
                                         className="hidden"
                                         accept=".pdf,.jpg,.jpeg,.png"
-                                        onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], setTinCertificate, setTinCertificateUrl, setIsUploadingTin)}
+                                        onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], setIdDocument, setIdDocumentUrl, setIsUploadingId)}
                                     />
                                     <div
-                                        onClick={() => tinRef.current?.click()}
+                                        onClick={() => idDocRef.current?.click()}
                                         className={cn(
                                             "border border-white/20 dark:border-white/10 rounded-[32px] p-8 flex flex-col justify-center h-full bg-white/10 dark:bg-white/[0.02] cursor-pointer hover:shadow-2xl hover:bg-white/30 transition-all group",
-                                            tinCertificate && "bg-green-500/10 border-green-500/20"
+                                            idDocument && "bg-green-500/10 border-green-500/20"
                                         )}
                                     >
                                         <div className="flex items-center gap-5 mb-6">
-                                            <div className="w-12 h-12 bg-primary dark:bg-accent rounded-2xl flex items-center justify-center text-white font-black text-[14px] shadow-xl shadow-blue-900/10 group-hover:scale-110 group-hover:-rotate-3 transition-all">PDF</div>
+                                            <div className="w-12 h-12 bg-primary dark:bg-accent rounded-2xl flex items-center justify-center text-white font-black text-[14px] shadow-xl shadow-blue-900/10 group-hover:scale-110 group-hover:-rotate-3 transition-all">ID</div>
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-md font-black text-gray-900 dark:text-white truncate transition-colors uppercase tracking-tight">{tinCertificate || t('tax_certificate')}</p>
-                                                <p className="text-[11px] font-bold text-white/40 uppercase tracking-[0.2em] mt-1">{t('required_doc')}</p>
+                                                <p className="text-md font-black text-gray-900 dark:text-white truncate transition-colors uppercase tracking-tight">{idDocument || t('national_id_passport') || 'National ID / Passport'}</p>
+                                                <p className="text-[11px] font-bold text-white/40 uppercase tracking-[0.2em] mt-1">{t('required_doc') || 'Required document'}</p>
                                             </div>
                                         </div>
                                         <div className="h-1.5 bg-white/10 dark:bg-white/5 rounded-full overflow-hidden">
                                             <div
                                                 className={cn(
                                                     "h-full transition-all duration-1000 shadow-[0_0_10px_rgba(34,197,94,0.4)]",
-                                                    isUploadingTin ? "bg-primary w-1/2 animate-pulse" :
-                                                        tinCertificateUrl ? "bg-green-500 w-full" : "bg-primary/20 w-0"
+                                                    isUploadingId ? "bg-primary w-1/2 animate-pulse" :
+                                                        idDocumentUrl ? "bg-green-500 w-full" : "bg-primary/20 w-0"
                                                 )}
                                             />
                                         </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="space-y-4">
-                                <label className="text-[10px] font-black text-white/50 dark:text-gray-400 uppercase tracking-[0.2em] ml-1 transition-colors">{t('owner_id_label')}</label>
-                                <input
-                                    type="file"
-                                    ref={ownerIdRef}
-                                    className="hidden"
-                                    accept=".jpg,.jpeg,.png"
-                                    onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], setOwnerId, setOwnerIdUrl, setIsUploadingId)}
-                                />
-                                <div
-                                    onClick={() => ownerIdRef.current?.click()}
-                                    className={cn(
-                                        "border border-white/20 dark:border-white/10 rounded-[40px] p-7 flex items-center gap-7 bg-white/10 dark:bg-white/[0.02] cursor-pointer hover:shadow-2xl hover:border-primary/50 transition-all group",
-                                        ownerId && "bg-green-500/10 border-green-500/20 shadow-none"
-                                    )}
-                                >
-                                    <div className="w-16 h-16 bg-white/20 dark:bg-white/5 rounded-[24px] flex items-center justify-center text-primary/40 dark:text-gray-600 group-hover:scale-110 group-hover:bg-primary group-hover:text-white transition-all duration-700 shadow-inner">
-                                        {isUploadingId ? (
-                                            <div className="w-7 h-7 border-3 border-gray-300 border-t-primary rounded-full animate-spin" />
-                                        ) : ownerIdUrl ? (
-                                            <Check size={32} className="text-green-500" />
-                                        ) : (
-                                            <User size={32} />
-                                        )}
-                                    </div>
-                                    <div className="flex-1">
-                                        <h4 className="text-md font-black text-gray-900 dark:text-white transition-colors uppercase tracking-tight">{ownerId || t('national_id_passport')}</h4>
-                                        <p className="text-[11px] font-medium text-white/40 dark:text-gray-500 transition-colors uppercase tracking-[0.1em] mt-1">{t('kebele_id_passport')}</p>
-                                    </div>
-                                    <div className="w-12 h-12 rounded-full bg-white/10 dark:bg-white/5 border border-white/10 flex items-center justify-center text-white/30 group-hover:text-primary group-hover:bg-white transition-all">
-                                        <ChevronRight size={24} />
                                     </div>
                                 </div>
                             </div>

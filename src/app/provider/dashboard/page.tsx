@@ -251,6 +251,8 @@ export default function RefinedDashboardPage() {
         },
     ];
 
+    const recentActivity = metrics?.recent_activity?.length ? metrics.recent_activity : historyActivity;
+
     const renderChart = () => {
         if (analysisMetric === 'performance' && chartType !== 'bar') {
             const performanceMetrics = [
@@ -602,8 +604,8 @@ export default function RefinedDashboardPage() {
                         </div>
 
                         <div className="flex-1 space-y-7">
-                            {((metrics?.recent_activity?.length ? metrics.recent_activity : historyActivity.length ? historyActivity : [] )).length > 0 ? (
-                                (metrics?.recent_activity?.length ? metrics.recent_activity : historyActivity).map((item: any, i: number) => (
+                            {recentActivity.length > 0 ? (
+                                recentActivity.map((item: any, i: number) => (
                                     <div key={i} className="flex gap-5 items-start group cursor-pointer relative">
                                         <div className={cn(
                                             "w-3 h-3 rounded-full mt-1.5 shrink-0 transition-all duration-500 border-2 border-white shadow-sm ring-2 ring-transparent group-hover:ring-primary/20",
